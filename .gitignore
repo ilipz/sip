@@ -1,12 +1,17 @@
+task*m
+task1
+task2
+task3
+task4
 # Prerequisites
 *.d
-
+test.c
 # Object files
 *.o
 *.ko
 *.obj
 *.elf
-
+sip
 # Linker output
 *.ilk
 *.map
