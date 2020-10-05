@@ -9,13 +9,14 @@
 
 
 int done = 1;
+pjsua_call_id callid;
 
 /* Callback called by the library upon receiving incoming call */
 static void on_incoming_call(pjsua_acc_id acc_id, pjsua_call_id call_id,
 			     pjsip_rx_data *rdata)
 {
     pjsua_call_info ci;
-
+    callid = call_id;
     PJ_UNUSED_ARG(acc_id);
     PJ_UNUSED_ARG(rdata);
 
@@ -26,11 +27,11 @@ static void on_incoming_call(pjsua_acc_id acc_id, pjsua_call_id call_id,
 			 ci.remote_info.ptr));
 
     /* Automatically answer incoming calls with 200/OK */
-    pjsua_call_answer(call_id, 200, NULL, NULL);
-    
+    pjsua_call_answer(call_id, 180, NULL, NULL);
+    pjsua_call_answer (call_id, 200, NULL, NULL);   
     sleep (10);
-	
-    pjsua_call_hangup_all();
+    
+    pjsua_call_hangup_all();    
     
     done = 0;
 }
@@ -116,7 +117,7 @@ int main(int argc, char *argv[])
 
     while (done)
 	    sleep (1);
-
+    pjsua_call_hangup_all();
     pjsua_destroy();
 
     return 0;
