@@ -1,6 +1,6 @@
 PJ_FLAG =  `pkg-config --cflags --libs libpjproject`
 ARM_CC = arm-linux-gnueabihf-gcc-5 -c 
-CC = gcc  -c
+CC = gcc  -c -g
 
 
 all: task1 task2 task3 task4 task1-arm task2-arm task3-arm task4-arm

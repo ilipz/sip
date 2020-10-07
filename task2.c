@@ -9,13 +9,36 @@
 
 
 int done = 1;
+pjsua_call_id callid;
+
+pjmedia_port *tone_port;
+
+pjmedia_tone_desc tone[1];
+
+pj_pool_t *pool;
+pj_caching_pool cp;
+
+static void on_call_media_state(pjsua_call_id call_id)
+{
+    pjsua_call_info ci;
+
+    pjsua_call_get_info(call_id, &ci);
+
+    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE) {
+	
+        pjmedia_tonegen_play(tone_port, 1, tone, 0);
+        pjsua_conf_add_port (pool, tone_port, NULL);
+
+    }
+}
+
 
 /* Callback called by the library upon receiving incoming call */
 static void on_incoming_call(pjsua_acc_id acc_id, pjsua_call_id call_id,
 			     pjsip_rx_data *rdata)
 {
     pjsua_call_info ci;
-
+    callid = call_id;
     PJ_UNUSED_ARG(acc_id);
     PJ_UNUSED_ARG(rdata);
 
@@ -25,12 +48,12 @@ static void on_incoming_call(pjsua_acc_id acc_id, pjsua_call_id call_id,
 			 (int)ci.remote_info.slen,
 			 ci.remote_info.ptr));
 
-    /* Automatically answer incoming calls with 200/OK */
+    /* Automatically answer incoming calls with 180OK */
     pjsua_call_answer(call_id, 180, NULL, NULL);
     pjsua_call_answer (call_id, 200, NULL, NULL);   
-    sleep (10);
-	
-    pjsua_call_hangup_all();
+    
+    sleep(30);
+    pjsua_call_hangup_all();    
     
     done = 0;
 }
@@ -58,6 +81,20 @@ static void error_exit(const char *title, pj_status_t status)
 
 int main(int argc, char *argv[])
 {
+    pj_caching_pool_init(&cp, &pj_pool_factory_default_policy, 0);
+    pool = pj_pool_create( &cp.factory,	    /* pool factory	    */
+			   "app",	    /* pool name.	    */
+			   4000,	    /* init size	    */
+			   4000,	    /* increment size	    */
+			   NULL		    /* callback on error    */
+			   );
+    pjmedia_tonegen_create(pool, 8000, 1, 64, 16, 0, &tone_port);
+
+    tone[0].freq1 = 200;
+	tone[0].freq2 = 0;
+	tone[0].on_msec = 100;
+	tone[0].off_msec = 100;
+
     pjsua_acc_id acc_id;
     pj_status_t status;
     pj_log_set_decor (PJ_LOG_HAS_COLOR);
@@ -77,7 +114,9 @@ int main(int argc, char *argv[])
 	pjsua_logging_config_default(&log_cfg);
 	log_cfg.console_level = 4;
 
-	status = pjsua_init(&cfg, &log_cfg, NULL);
+    pjsua_media_config med_cfg;
+    pjsua_media_config_default (&med_cfg);
+	status = pjsua_init(&cfg, &log_cfg, &med_cfg);
 	if (status != PJ_SUCCESS) error_exit("Error in pjsua_init()", status);
     }
 
@@ -116,7 +155,7 @@ int main(int argc, char *argv[])
 
     while (done)
 	    sleep (1);
-
+    pjsua_call_hangup_all();
     pjsua_destroy();
 
     return 0;
