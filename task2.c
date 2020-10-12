@@ -71,6 +71,8 @@ static pjsip_endpoint	    *g_endpt;	    /* SIP endpoint.		*/
 static pj_caching_pool	     cp;	    /* Global pool factory.	*/
 pj_pool_t *pool = NULL;
 
+pjsip_dialog *cdlg;
+
 static pjmedia_endpt	    *g_med_endpt;   /* Media endpoint.		*/
 
 static pjmedia_transport_info g_med_tpinfo[MAX_MEDIA_CNT]; 
@@ -380,6 +382,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
      */
     pjsip_dlg_dec_lock(dlg);
 
+    cdlg = dlg;
 
     /*
      * Initially send 180 response.
@@ -531,25 +534,7 @@ static void call_on_media_update( pjsip_inv_session *inv,
 
 
 	pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP);
-/* Create sound port */
-    pj_status_t statu =  pjmedia_snd_port_create(pool,
-                            PJMEDIA_AUD_DEFAULT_CAPTURE_DEV,
-                            PJMEDIA_AUD_DEFAULT_PLAYBACK_DEV,
-                            PJMEDIA_PIA_SRATE(&tonegen_port->info),/* clock rate	    */
-                            PJMEDIA_PIA_CCNT(&tonegen_port->info),/* channel count    */
-                            PJMEDIA_PIA_SPF(&tonegen_port->info), /* samples per frame*/
-                            PJMEDIA_PIA_BITS(&tonegen_port->info),/* bits per sample  */
-                            0,
-                            &sound_port);
-    pj_perror (5, "sound_dev_create", statu, "shto-to");
-    
-	PJ_LOG(5,(THIS_FILE, "%d %d %d %d",
-		    PJMEDIA_PIA_SRATE(&tonegen_port->info),/* clock rate	    */
-		    PJMEDIA_PIA_CCNT(&tonegen_port->info),/* channel count    */
-		    PJMEDIA_PIA_SPF(&tonegen_port->info), /* samples per frame*/
-		    PJMEDIA_PIA_BITS(&tonegen_port->info) /* bits per sample  */
-	    ));
-    //pjmedia_snd_port_connect(sound_port, tonegen_port);
+
 
 
 	pjmedia_master_port_create (pool, tonegen_port, stream_port, 0, &mp);
@@ -902,10 +887,16 @@ int main(int argc, char *argv[])
     /* Loop until one call is completed */
     //sleep (5);
     //pj_timer_heap_cancel(timer, &entry);
-    for (;!g_complete;) {
+    for (int i=0; i<8; i++) {
+    sleep(1);
 	pj_time_val timeout = {0, 10};
 	pjsip_endpt_handle_events(g_endpt, &timeout);
     }
+    
+    pjsip_tx_data *bye_data;
+    pjsip_dlg_create_request (cdlg, &pjsip_bye_method, -1, &bye_data);
+    pjsip_dlg_send_request (cdlg, bye_data, -1, NULL);
+    //pjsip_dlg_dec_session (cdlg, NULL);
 
     pjmedia_master_port_destroy (mp, 0);
 
