@@ -38,7 +38,11 @@
 #include <pjsip_simple.h>
 #include <pjlib-util.h>
 #include <pjlib.h>
-#include <unistd.h>
+/*
+    RTP sends but empty and strangely
+    Try through pjsua
+*/
+//#include <unistd.h>
 
 
 
@@ -51,13 +55,9 @@
 #define AF		pj_AF_INET() /* Change to pj_AF_INET6() for IPv6.
 				      * PJ_HAS_IPV6 must be enabled and
 				      * your system must support IPv6.  */
-#if 0
-#define SIP_PORT	5080	     /* Listening SIP port		*/
-#define RTP_PORT	5000	     /* RTP port			*/
-#else
+
 #define SIP_PORT	5060	     /* Listening SIP port		*/
 #define RTP_PORT	4000	     /* RTP port			*/
-#endif
 
 #define MAX_MEDIA_CNT	1	     /* Media count, set to 1 for audio
 				      * only or 2 for audio and video	*/
@@ -83,7 +83,7 @@ static pjmedia_sock_info     g_sock_info[MAX_MEDIA_CNT];
 /* Call variables: */
 static pjsip_inv_session    *g_inv;	    /* Current invite session.	*/
 static pjmedia_stream       *g_med_stream;  /* Call's audio stream.	*/
-static pjmedia_snd_port	    *g_snd_port;    /* Sound device.		*/
+static pjmedia_snd_port	    *sound_port;    /* Sound device.		*/
 
 
 // Junction between tonegen port and stream port through pj_master_port
@@ -91,6 +91,36 @@ static pjmedia_snd_port	    *g_snd_port;    /* Sound device.		*/
 pjmedia_master_port *mp=NULL;
 pjmedia_port *tonegen_port=NULL;
 pjmedia_port *stream_port=NULL;
+
+
+pjsip_tx_data *tdata=NULL;
+
+pj_timer_entry *entry;
+pj_timer_heap_t *timer;
+pj_time_val delay;
+
+
+void stimer_callback(pj_timer_heap_t *ht, pj_timer_entry *e)
+{
+    pj_status_t status;
+    PJ_UNUSED_ARG(ht);
+    PJ_UNUSED_ARG(e);
+    /*
+     * Now create 200 response.
+     */
+    status = pjsip_inv_answer( g_inv, 
+			       200, NULL,	/* st_code and st_text */
+			       NULL,		/* SDP already specified */
+			       &tdata);
+    PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
+
+    /*
+     * Send the 200 response.
+     */
+    status = pjsip_inv_send_msg(g_inv, tdata);
+    PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
+
+}
 
 /* Callback to be called when SDP negotiation is done in the call: */
 static void call_on_media_update( pjsip_inv_session *inv,
@@ -218,7 +248,7 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 
     } else {
 
-	PJ_LOG(3,(THIS_FILE, "Call state changed to %s", 
+	PJ_LOG(3,(THIS_FILE, "\nCall state changed to %s\n", 
 		  pjsip_inv_state_name(inv->state)));
 
     }
@@ -246,7 +276,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     pj_str_t local_uri;
     pjsip_dialog *dlg;
     pjmedia_sdp_session *local_sdp;
-    pjsip_tx_data *tdata;
+    
     unsigned options = 0;
     pj_status_t status;
 
@@ -368,10 +398,16 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     status = pjsip_inv_send_msg(g_inv, tdata); 
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
 
+    /*pj_timer_heap_mem_size(sizeof(pj_timer_entry));
+    entry = (pj_timer_entry*)pj_pool_calloc(pool, 1, sizeof(*entry));
+    entry->cb = &stimer_callback;
+    pj_timer_heap_create(pool, 1, &timer);
 
-    /*
-     * Now create 200 response.
-     */
+    delay.sec = 5;
+	delay.msec = 0;
+    
+    pj_timer_heap_schedule(timer, &entry, &delay); */
+
     status = pjsip_inv_answer( g_inv, 
 			       200, NULL,	/* st_code and st_text */
 			       NULL,		/* SDP already specified */
@@ -383,6 +419,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
      */
     status = pjsip_inv_send_msg(g_inv, tdata);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
+    
 
 
     /* Done. 
@@ -463,15 +500,16 @@ static void call_on_media_update( pjsip_inv_session *inv,
      * put_frame() function. With this media port interface, we can attach
      * the port interface to conference bridge, or directly to a sound
      * player/recorder device.
+     * USEFULL
      */
     pjmedia_stream_get_port(g_med_stream, &stream_port);
 
-	pjmedia_tonegen_create(pool, 16000, 1, 320, 16, 0, &tonegen_port);
+	pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &tonegen_port);
 
 	pjmedia_tone_desc tone[1];
-    tone[0].freq1 = 200;
+    tone[0].freq1 = 400;
 	tone[0].freq2 = 0;
-	tone[0].on_msec = 100;
+	tone[0].on_msec = 400;
 	tone[0].off_msec = 100;
 
 	pjmedia_stream_info st_i;
@@ -488,18 +526,38 @@ static void call_on_media_update( pjsip_inv_session *inv,
 			);
 			//stream_port->info.fmt.det.aud.,
 			//tonegen_port->info.fmt.det.aud.clock_rate);
-	getchar(); 
+	//getchar(); 
 
-	pjmedia_tonegen_play(tonegen_port, 1, tone, 0);
-    //pjsua_conf_add_port (pool, media_port, NULL);
-	
+
+
+	pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP);
+/* Create sound port */
+    pj_status_t statu =  pjmedia_snd_port_create(pool,
+                            PJMEDIA_AUD_DEFAULT_CAPTURE_DEV,
+                            PJMEDIA_AUD_DEFAULT_PLAYBACK_DEV,
+                            PJMEDIA_PIA_SRATE(&tonegen_port->info),/* clock rate	    */
+                            PJMEDIA_PIA_CCNT(&tonegen_port->info),/* channel count    */
+                            PJMEDIA_PIA_SPF(&tonegen_port->info), /* samples per frame*/
+                            PJMEDIA_PIA_BITS(&tonegen_port->info),/* bits per sample  */
+                            0,
+                            &sound_port);
+    pj_perror (5, "sound_dev_create", statu, "shto-to");
+    
+	PJ_LOG(5,(THIS_FILE, "%d %d %d %d",
+		    PJMEDIA_PIA_SRATE(&tonegen_port->info),/* clock rate	    */
+		    PJMEDIA_PIA_CCNT(&tonegen_port->info),/* channel count    */
+		    PJMEDIA_PIA_SPF(&tonegen_port->info), /* samples per frame*/
+		    PJMEDIA_PIA_BITS(&tonegen_port->info) /* bits per sample  */
+	    ));
+    //pjmedia_snd_port_connect(sound_port, tonegen_port);
+
+
 	pjmedia_master_port_create (pool, tonegen_port, stream_port, 0, &mp);
+
 	pjmedia_master_port_start (mp);
 
-	for (int i=0; i<5; i++)
-		sleep(1);
 	
-	pjmedia_master_port_destroy (mp, 0);
+	
 
     /* Create sound port 
     pjmedia_snd_port_create(inv->pool,
@@ -681,10 +739,10 @@ int main(int argc, char *argv[])
 
     
 
-    status = pjmedia_codec_speex_init_default(g_med_endpt);
+    status = pjmedia_codec_g711_init(g_med_endpt);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
-
+    
 
 
 
@@ -837,15 +895,19 @@ int main(int argc, char *argv[])
 
 	/* No URL to make call to */
 
-	PJ_LOG(3,(THIS_FILE, "Ready to accept incoming calls..."));
+	PJ_LOG(5,(THIS_FILE, "Ready to accept incoming calls..."));
     }
 
 
     /* Loop until one call is completed */
+    //sleep (5);
+    //pj_timer_heap_cancel(timer, &entry);
     for (;!g_complete;) {
 	pj_time_val timeout = {0, 10};
 	pjsip_endpt_handle_events(g_endpt, &timeout);
     }
+
+    pjmedia_master_port_destroy (mp, 0);
 
     /* On exit, dump current memory usage: */
     //dump_pool_usage(THIS_FILE, &cp);
@@ -854,8 +916,8 @@ int main(int argc, char *argv[])
      * before the stream since the audio port has threads
      * that get/put frames to the stream.
      */
-    if (g_snd_port)
-	pjmedia_snd_port_destroy(g_snd_port);
+    if (sound_port)
+	pjmedia_snd_port_destroy(sound_port);
 
 
 
