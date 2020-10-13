@@ -38,12 +38,12 @@
 #include <pjsip_simple.h>
 #include <pjlib-util.h>
 #include <pjlib.h>
-/*
-    RTP sends but empty and strangely
-    Try through pjsua
-*/
-//#include <unistd.h>
 
+void poolfail_cb (pj_pool_t *pool, pj_size_t size)
+{
+    pj_perror (5, "app", 0, "Ploho" );
+    exit (1);
+}
 
 
 /* For logging purpose. */
@@ -88,42 +88,46 @@ static pjmedia_stream       *g_med_stream;  /* Call's audio stream.	*/
 static pjmedia_snd_port	    *sound_port;    /* Sound device.		*/
 
 
-// Junction between tonegen port and stream port through pj_master_port
+// Junction between tonegen/file port and stream port through pj_master_port
 
 pjmedia_master_port *mp=NULL;
 pjmedia_port *tonegen_port=NULL;
 pjmedia_port *stream_port=NULL;
 pjmedia_port *player_port=NULL;
 pjmedia_port *out_port=NULL;
-
+pjsip_rx_data *r2data=NULL;
 
 pjsip_tx_data *tdata=NULL;
+
 
 pj_timer_entry *entry;
 pj_timer_heap_t *timer;
 pj_time_val delay;
+static pjsip_inv_session *g2_inv; // for timer's callback	
 
+int CHECK=0;
 
-void stimer_callback(pj_timer_heap_t *ht, pj_timer_entry *e)
+void pjtimer_callback(pj_timer_heap_t *ht, pj_timer_entry *e)
 {
     pj_status_t status;
     PJ_UNUSED_ARG(ht);
     PJ_UNUSED_ARG(e);
-    /*
-     * Now create 200 response.
-     */
-    status = pjsip_inv_answer( g_inv, 
-			       200, NULL,	/* st_code and st_text */
-			       NULL,		/* SDP already specified */
-			       &tdata);
+    //printf ("\nAAAAAAAAAAAAAAAAAAA\n");
+   
+    //getchar();
+    
+    //PJ_LOG (5, ("", g2_inv.))
+    
+    status =   pjsip_inv_answer
+                (
+                    g_inv, 200, NULL, NULL, &tdata 
+                );
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
 
-    /*
-     * Send the 200 response.
-     */
-    status = pjsip_inv_send_msg(g_inv, tdata);
-    PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
-
+    
+    status = pjsip_inv_send_msg(g2_inv, tdata);
+   
+    //CHECK = 1;
 }
 
 /* Callback to be called when SDP negotiation is done in the call: */
@@ -164,6 +168,7 @@ static pjsip_module mod_simpleua =
     NULL,			    /* on_tx_response()		*/
     NULL,			    /* on_tsx_state()		*/
 };
+
 
 
 /* Notification on incoming messages */
@@ -393,37 +398,34 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
      * pjsip_inv_initial_answer(). Subsequent responses to the same
      * transaction MUST use pjsip_inv_answer().
      */
+
     status = pjsip_inv_initial_answer(g_inv, rdata, 
-				      180, 
+				      100, 
 				      NULL, NULL, &tdata);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
-
-
-    /* Send the 180 response. */  
+    /* Send the 100 response. */  
     status = pjsip_inv_send_msg(g_inv, tdata); 
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
 
-    /*pj_timer_heap_mem_size(sizeof(pj_timer_entry));
-    entry = (pj_timer_entry*)pj_pool_calloc(pool, 1, sizeof(*entry));
-    entry->cb = &stimer_callback;
-    pj_timer_heap_create(pool, 1, &timer);
 
-    delay.sec = 5;
-	delay.msec = 0;
+    status = pjsip_inv_answer
+                (
+                    g_inv,
+                    180, 
+                    NULL, NULL, &tdata
+                );
     
-    pj_timer_heap_schedule(timer, &entry, &delay); */
-
-    status = pjsip_inv_answer( g_inv, 
-			       200, NULL,	/* st_code and st_text */
-			       NULL,		/* SDP already specified */
-			       &tdata);
+    
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
-
-    /*
-     * Send the 200 response.
-     */
-    status = pjsip_inv_send_msg(g_inv, tdata);
+    /* Send the 180 response. */  
+    status = pjsip_inv_send_msg(g_inv, tdata); 
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
+    
+    g2_inv = g_inv;
+    r2data = rdata;
+    
+    
+    pj_timer_heap_schedule(timer, entry, &delay);
     
 
 
@@ -445,6 +447,7 @@ static void call_on_media_update( pjsip_inv_session *inv,
 				  pj_status_t status)
 {
     pjmedia_stream_info stream_info;
+    //printf ("\nVEDIAAAAAAAAA\n");
     const pjmedia_sdp_session *local_sdp;
     const pjmedia_sdp_session *remote_sdp;
 
@@ -509,7 +512,7 @@ static void call_on_media_update( pjsip_inv_session *inv,
      */
     pjmedia_stream_get_port(g_med_stream, &stream_port);
 
-    if (out_port == NULL)
+    /*if (out_port == NULL)
     {
         pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &tonegen_port);
 
@@ -526,7 +529,7 @@ static void call_on_media_update( pjsip_inv_session *inv,
 	    {
 		printf ("\n\nTaki audio\n\n");
 		getchar();
-	    } */
+	    } 
 	    printf ("\n\nstream=%u tonegen=%u\n\n", 
 			PJMEDIA_PIA_SPF (&stream_port->info),
 			PJMEDIA_PIA_SPF (&tonegen_port->info) 
@@ -535,8 +538,8 @@ static void call_on_media_update( pjsip_inv_session *inv,
 			//tonegen_port->info.fmt.det.aud.clock_rate);
 	    //getchar(); 
         pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP);
-        out_port = tonegen_port;
-    }
+        //out_port = tonegen_port;
+    } */
 
     pjmedia_audio_format_detail *stream_afd, *out_afd;
     stream_afd = pjmedia_format_get_audio_format_detail(&stream_port->info.fmt, PJ_TRUE);
@@ -616,7 +619,7 @@ int main(int argc, char *argv[])
 			   "app",	    /* pool name.	    */
 			   4000,	    /* init size	    */
 			   4000,	    /* increment size	    */
-			   NULL		    /* callback on error    */
+			   &poolfail_cb		    /* callback on error    */
 			   );
 
     /* Create global endpoint: */
@@ -775,12 +778,12 @@ int main(int argc, char *argv[])
 		  sizeof(pjmedia_sock_info));
     }
 
-    if (argc > 1)
-    {
-        status = pjmedia_wav_player_port_create 
+    //if (argc > 1)
+    //{
+    status = pjmedia_wav_player_port_create 
                  (  
                           pool,	/* memory pool	    */
-					      argv[1],	// file to play	 (16 bitrate, 8 khz, mono)
+					      "task2.wav",	// file to play	 (16 bitrate, 8 khz, mono)
 					      20,	/* ptime.	    */
 					      0,	/* flags	    */
 					      0,	/* default buffer   */
@@ -792,7 +795,7 @@ int main(int argc, char *argv[])
             exit (1);
         }
         out_port = player_port;
-    }
+    //}
 
     // If URL is specified, then make call immediately.
     /*if (argc > 1) {
@@ -917,15 +920,40 @@ int main(int argc, char *argv[])
     /* Loop until one call is completed */
     //sleep (5);
     //pj_timer_heap_cancel(timer, &entry);
-    for (int i=0; i<60; i++) {
-    sleep(1);
-	pj_time_val timeout = {0, 10};
-	pjsip_endpt_handle_events(g_endpt, &timeout);
+    //pj_gettimeofday (&delay);
+    delay.sec = 5;
+    delay.msec = 0;
+    
+    //entry = (pj_timer_entry*)pj_pool_calloc(pool, 1, sizeof(*entry));
+    //entry->cb = &pjtimer_callback;
+    pj_timer_heap_create(pool, 1, &timer);
+
+    entry = (pj_timer_entry*)pj_pool_calloc(pool, 1, sizeof(*entry));
+    entry->cb = NULL;
+    pj_timer_entry_init (entry, 0, NULL, &pjtimer_callback);
+
+    //printf ("%d %d %d %d", entry->cb, entry->id, entry->user_data, entry->_timer_id);
+    
+    //getchar();
+    /*printf ("%d\n", entry->id);
+    getchar();
+    printf ("%d\n", entry->user_data);
+    getchar();
+    printf ("%d\n", entry->_timer_id);
+    getchar(); */
+
+    while ( pjmedia_wav_player_get_len (player_port) !=  pjmedia_wav_player_port_get_pos (player_port) )
+    {
+        pj_time_val timeout = {0, 10};
+	    pjsip_endpt_handle_events(g_endpt, &timeout);
+        
+        pj_timer_heap_poll(timer, NULL);
+
     }
     
     pjsip_tx_data *bye_data;
     pjsip_dlg_create_request (cdlg, &pjsip_bye_method, -1, &bye_data);
-    pjsip_dlg_send_request (cdlg, bye_data, -1, NULL);
+    pjsip_dlg_send_request (cdlg, bye_data, -1, NULL); 
     //pjsip_dlg_dec_session (cdlg, NULL);
 
     pjmedia_master_port_destroy (mp, 0);
