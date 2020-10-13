@@ -93,6 +93,8 @@ static pjmedia_snd_port	    *sound_port;    /* Sound device.		*/
 pjmedia_master_port *mp=NULL;
 pjmedia_port *tonegen_port=NULL;
 pjmedia_port *stream_port=NULL;
+pjmedia_port *player_port=NULL;
+pjmedia_port *out_port=NULL;
 
 
 pjsip_tx_data *tdata=NULL;
@@ -507,38 +509,49 @@ static void call_on_media_update( pjsip_inv_session *inv,
      */
     pjmedia_stream_get_port(g_med_stream, &stream_port);
 
-	pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &tonegen_port);
+    if (out_port == NULL)
+    {
+        pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &tonegen_port);
 
-	pjmedia_tone_desc tone[1];
-    tone[0].freq1 = 400;
-	tone[0].freq2 = 0;
-	tone[0].on_msec = 400;
-	tone[0].off_msec = 100;
+	    pjmedia_tone_desc tone[1];
+        tone[0].freq1 = 400;
+	    tone[0].freq2 = 0;
+	    tone[0].on_msec = 400;
+	    tone[0].off_msec = 100;
 
-	pjmedia_stream_info st_i;
-	pjmedia_stream_get_info (g_med_stream, &st_i);
+	    pjmedia_stream_info st_i;
+	    pjmedia_stream_get_info (g_med_stream, &st_i);
 
-	/*if (stream_port->info.fmt.det.aud.clock_rate == PJMEDIA_TYPE_AUDIO)  //здесь надо проверить совпадают ли тактовые частоты медиа порта стрима и тонгена 
-	{
+	    /*if (stream_port->info.fmt.det.aud.clock_rate == PJMEDIA_TYPE_AUDIO)  //здесь надо проверить совпадают ли тактовые частоты медиа порта стрима и тонгена 
+	    {
 		printf ("\n\nTaki audio\n\n");
 		getchar();
-	} */
-	printf ("\n\nstream=%u tonegen=%u\n\n", 
+	    } */
+	    printf ("\n\nstream=%u tonegen=%u\n\n", 
 			PJMEDIA_PIA_SPF (&stream_port->info),
 			PJMEDIA_PIA_SPF (&tonegen_port->info) 
 			);
 			//stream_port->info.fmt.det.aud.,
 			//tonegen_port->info.fmt.det.aud.clock_rate);
-	//getchar(); 
+	    //getchar(); 
+        pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP);
+        out_port = tonegen_port;
+    }
 
+    pjmedia_audio_format_detail *stream_afd, *out_afd;
+    stream_afd = pjmedia_format_get_audio_format_detail(&stream_port->info.fmt, PJ_TRUE);
+    out_afd = pjmedia_format_get_audio_format_detail(&out_port->info.fmt, PJ_TRUE);
 
+    printf ("stream & out\n"
+            "hz: %d & %d\n"
+            "spf: %d & %d\n", 
+            stream_afd->clock_rate, out_afd->clock_rate,
+            PJMEDIA_PIA_SPF(&stream_port->info), PJMEDIA_PIA_SPF(&out_port->info)
+            );
+    //getchar();
 
-	pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP);
-
-
-
-	pjmedia_master_port_create (pool, tonegen_port, stream_port, 0, &mp);
-
+	pjmedia_master_port_create (pool, out_port, stream_port, 0, &mp);
+    
 	pjmedia_master_port_start (mp);
 
 	
@@ -762,10 +775,27 @@ int main(int argc, char *argv[])
 		  sizeof(pjmedia_sock_info));
     }
 
-    /*
-     * If URL is specified, then make call immediately.
-     */
-    if (argc > 1) {
+    if (argc > 1)
+    {
+        status = pjmedia_wav_player_port_create 
+                 (  
+                          pool,	/* memory pool	    */
+					      argv[1],	// file to play	 (16 bitrate, 8 khz, mono)
+					      20,	/* ptime.	    */
+					      0,	/* flags	    */
+					      0,	/* default buffer   */
+					      &player_port/* returned port    */
+				 );
+        if (PJ_SUCCESS != status)
+        {
+            pj_perror (5, "wav pjmedia create", status, "egog");
+            exit (1);
+        }
+        out_port = player_port;
+    }
+
+    // If URL is specified, then make call immediately.
+    /*if (argc > 1) {
 	pj_sockaddr hostaddr;
 	char hostip[PJ_INET_ADDRSTRLEN+2];
 	char temp[80];
@@ -785,13 +815,13 @@ int main(int argc, char *argv[])
 			hostip, SIP_PORT);
 	local_uri = pj_str(temp);
 
-	/* Create UAC dialog */
+	// Create UAC dialog 
 	status = pjsip_dlg_create_uac( pjsip_ua_instance(), 
-				       &local_uri,  /* local URI */
-				       &local_uri,  /* local Contact */
-				       &dst_uri,    /* remote URI */
-				       &dst_uri,    /* remote target */
-				       &dlg);	    /* dialog */
+				       &local_uri,  // local URI 
+				       &local_uri,  // local Contact 
+				       &dst_uri,    // remote URI 
+				       &dst_uri,    // remote target 
+				       &dlg);	    // dialog 
 	if (status != PJ_SUCCESS) {
 	    //pj_perror(THIS_FILE, "Unable to create UAC dialog", status);
 	    return 1;
@@ -812,24 +842,24 @@ int main(int argc, char *argv[])
 		pjsip_auth_clt_set_credentials( &dlg->auth_sess, 1, cred);
 	    }
 	 *
-	 */
+	 
 
 
-	/* Get the SDP body to be put in the outgoing INVITE, by asking
-	 * media endpoint to create one for us.
-	 */
-	status = pjmedia_endpt_create_sdp( g_med_endpt,	    /* the media endpt	*/
-					   dlg->pool,	    /* pool.		*/
-					   MAX_MEDIA_CNT,   /* # of streams	*/
-					   g_sock_info,     /* RTP sock info	*/
-					   &local_sdp);	    /* the SDP result	*/
+	// Get the SDP body to be put in the outgoing INVITE, by asking
+	// media endpoint to create one for us.
+	 
+	status = pjmedia_endpt_create_sdp( g_med_endpt,	    // the media endpt	
+					   dlg->pool,	    // pool.		
+					   MAX_MEDIA_CNT,   // # of streams	
+					   g_sock_info,     // RTP sock info	
+					   &local_sdp);	    // the SDP result	
 	PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
 
 
 	/* Create the INVITE session, and pass the SDP returned earlier
 	 * as the session's initial capability.
-	 */
+	 
 	status = pjsip_inv_create_uac( dlg, local_sdp, 0, &g_inv);
 	PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
@@ -857,12 +887,12 @@ int main(int argc, char *argv[])
 	    }
 	 *
 	 * Note that Route URI SHOULD have an ";lr" parameter!
-	 */
+	 
 
 	/* Create initial INVITE request.
 	 * This INVITE request will contain a perfectly good request and 
 	 * an SDP body as well.
-	 */
+	 
 	status = pjsip_inv_invite(g_inv, &tdata);
 	PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
@@ -871,23 +901,23 @@ int main(int argc, char *argv[])
 	/* Send initial INVITE request. 
 	 * From now on, the invite session's state will be reported to us
 	 * via the invite session callbacks.
-	 */
+	 
 	status = pjsip_inv_send_msg(g_inv, tdata);
 	PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
 
-    } else {
+    } */ 
 
 	/* No URL to make call to */
 
 	PJ_LOG(5,(THIS_FILE, "Ready to accept incoming calls..."));
-    }
+    
 
 
     /* Loop until one call is completed */
     //sleep (5);
     //pj_timer_heap_cancel(timer, &entry);
-    for (int i=0; i<8; i++) {
+    for (int i=0; i<60; i++) {
     sleep(1);
 	pj_time_val timeout = {0, 10};
 	pjsip_endpt_handle_events(g_endpt, &timeout);
