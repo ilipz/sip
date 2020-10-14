@@ -414,7 +414,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     //g2_inv = g_inv;
     //r2data = rdata;
 
-    delay.sec = 5;
+    delay.sec = 10;
     delay.msec = 0;
     pj_timer_heap_schedule(timer, &entry[0], &delay);
 
