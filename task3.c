@@ -78,6 +78,8 @@ void pjtimer_callback(pj_timer_heap_t *ht, pj_timer_entry *e)
     PJ_UNUSED_ARG(ht);
     PJ_UNUSED_ARG(e);
 
+    if (!g_inv)
+        return;
     
     status =   pjsip_inv_answer
                 (
@@ -111,7 +113,9 @@ void auto_exit (pj_timer_heap_t *ht, pj_timer_entry *e)
 {
     PJ_UNUSED_ARG(ht);
     PJ_UNUSED_ARG(e);
-    g_complete = 1;
+    //g_complete = 1;
+    if (!g_inv)
+        return;
     pjsip_tx_data *bye_data;
     pjsip_dlg_create_request (cdlg, &pjsip_bye_method, -1, &bye_data);
     pjsip_dlg_send_request (cdlg, bye_data, -1, NULL); 
@@ -240,9 +244,10 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 		  pjsip_get_status_text(inv->cause)->ptr));
 
 	PJ_LOG(3,(THIS_FILE, "One call completed, application quitting..."));
-	g_complete = 1;
+	//g_complete = 1;
 
     pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
+    g_inv = NULL;
 
     } else {
 
@@ -413,8 +418,8 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     
     //g2_inv = g_inv;
     //r2data = rdata;
-
-    delay.sec = 10;
+    //т.к. пускаются одновременно, то и промежуток между 183 и 200 маленький
+    delay.sec = 10; здесь нужно таймеры разъединить, чтоб запускались не одновременно
     delay.msec = 0;
     pj_timer_heap_schedule(timer, &entry[0], &delay);
 
@@ -495,25 +500,20 @@ static void call_on_media_update( pjsip_inv_session *inv,
     
     pjmedia_stream_get_port(g_med_stream, &stream_port);
 
-    //if (out_port == NULL)
-   // { 
-        pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &tonegen_port);
+     
+    pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &tonegen_port);
 
-	    pjmedia_tone_desc tone[1];
-        tone[0].freq1 = 400;
-	    tone[0].freq2 = 0;
-	    tone[0].on_msec = 1000;
-	    tone[0].off_msec = 4000;
+    pjmedia_tone_desc tone[1];
+    tone[0].freq1 = 400;
+    tone[0].freq2 = 0;
+    tone[0].on_msec = 1000;
+    tone[0].off_msec = 4000;
 
-	    
-
-	    
-        pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP); 
-    //} 
+    pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP); 
+  
 
 
 	pjmedia_master_port_create (pool, tonegen_port, stream_port, 0, &mp);
-    
 	pjmedia_master_port_start (mp);
 
     // Done with media. 
@@ -719,7 +719,7 @@ int main(int argc, char *argv[])
 
     }
 
-    pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
+    //pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
 
     if (mp) 
         pjmedia_master_port_destroy (mp, 0);
