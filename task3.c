@@ -1,4 +1,3 @@
-// User_data in timer_entry
 #include <pjsip.h>
 #include <pjmedia.h>
 #include <pjmedia-codec.h>
@@ -8,139 +7,40 @@
 #include <pjlib.h>
 #include <signal.h>
 
-void poolfail_cb (pj_pool_t *pool, pj_size_t size)
-{
-    pj_perror (5, "app", 0, "Ploho" );
-    exit (1);
-}
-
-
 // For logging purpose. 
-#define THIS_FILE   "simpleua.c"
+#define THIS_FILE   "TASK 3.3"
 
 // Settings 
-#define AF		pj_AF_INET() // Change to pj_AF_INET6() for IPv6.
-//PJ_HAS_IPV6 must be enabled and
-				      // your system must support IPv6.  
+#define AF		pj_AF_INET() 
 
 #define SIP_PORT	5060	     // Listening SIP port		
 #define RTP_PORT	4000	     // RTP port			
+#define MAX_MEDIA_CNT	1	     // Media count, set to 1 for audio (ERASE)
 
-#define MAX_MEDIA_CNT	1	     // Media count, set to 1 for audio
-				      //only or 2 for audio and video	
-
-
-// Static variables.
- 
-
-static pj_bool_t	     g_complete=PJ_TRUE;    // Quit flag.		
-static pjsip_endpoint	    *g_endpt;	    // SIP endpoint.		
-static pj_caching_pool	     cp;	    // Global pool factory.	
-pj_pool_t *pool = NULL;
-
-pjsip_dialog *cdlg;
-
-static pjmedia_endpt	    *g_med_endpt;   // Media endpoint.		
-
-static pjmedia_transport_info g_med_tpinfo[MAX_MEDIA_CNT]; 
-					    // Socket info for media	
-static pjmedia_transport    *g_med_transport[MAX_MEDIA_CNT];
-					    // Media stream transport	
-static pjmedia_sock_info     g_sock_info[MAX_MEDIA_CNT];  
-					    // Socket info array	
-
-// Call variables: 
-static pjsip_inv_session    *g_inv;	    // Current invite session.	
-static pjmedia_stream       *g_med_stream;  // Call's audio stream.	
-static pjmedia_snd_port	    *sound_port;    // Sound device.		
-
-
-// Junction between tonegen/file port and stream port through pj_master_port
-
-pjmedia_master_port *mp=NULL;
-pjmedia_port *tonegen_port=NULL;
-pjmedia_port *stream_port=NULL;
-pjmedia_port *player_port=NULL;
-
-
-pjsip_tx_data *tdata=NULL;
-
-
-pj_timer_entry entry[2];
-pj_timer_heap_t *timer;
-pj_time_val delay;
-
-pj_bool_t not_first = PJ_FALSE;
-
-void when_exit (int none)
-{
-    PJ_UNUSED_ARG(none);
-    g_complete = PJ_FALSE;
-}
-
-
-void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e)
-{
-    pj_status_t status;
-    PJ_UNUSED_ARG(ht);
-    PJ_UNUSED_ARG(e);
-
-    if (g_inv->state == PJSIP_INV_STATE_DISCONNECTED)
-        return;
-    
-    status =   pjsip_inv_answer
-                (
-                    g_inv, 200, NULL, NULL, &tdata 
-                );
-    PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
-    
-    
-    pjmedia_master_port_stop(mp);
-    pjmedia_master_port_set_uport (mp, player_port); 
-    pjmedia_master_port_start (mp);
-    status = pjsip_inv_send_msg(g_inv, tdata);
-   
-   delay.sec = 10;
-   pj_timer_heap_schedule(timer, &entry[1], &delay);
-
-}
-
-void auto_exit (pj_timer_heap_t *ht, pj_timer_entry *e)
-{
-    PJ_UNUSED_ARG(ht);
-    PJ_UNUSED_ARG(e);
-    pjmedia_master_port_stop (mp);
-
-    if (g_inv->state == PJSIP_INV_STATE_DISCONNECTED)
-    {
-        
-        return;
-    }
-
-    pjmedia_master_port_stop (mp);
-    pjsip_tx_data *bye_data;
-    pjsip_dlg_create_request (cdlg, &pjsip_bye_method, -1, &bye_data);
-    pjsip_dlg_send_request (cdlg, bye_data, -1, NULL);
-    g_inv = NULL; 
-
-}
-
-// Callback to be called when SDP negotiation is done in the call: 
-static void call_on_media_update( pjsip_inv_session *inv,
-				  pj_status_t status);
-
-// Callback to be called when invite session's state has changed: 
-static void call_on_state_changed( pjsip_inv_session *inv, 
-				   pjsip_event *e);
-
-// Callback to be called when dialog has forked: */
+////////////Unused (i.e. out of using) funcs//////////////////////
+static pj_bool_t logging_on_rx_msg(pjsip_rx_data *rdata);
+static pj_status_t logging_on_tx_msg(pjsip_tx_data *tdata);
 static void call_on_forked(pjsip_inv_session *inv, pjsip_event *e);
-
-// Callback to be called to handle incoming requests outside dialogs: 
 static pj_bool_t on_rx_request( pjsip_rx_data *rdata );
 
+// The module instance. 
+static pjsip_module msg_logger = 
+{
+    NULL, NULL,				// prev, next.		
+    { "mod-msg-log", 13 },		// Name.		
+    -1,					// Id			
+    PJSIP_MOD_PRIORITY_TRANSPORT_LAYER-1,// Priority	        
+    NULL,				// load()		
+    NULL,				// start()		
+    NULL,				// stop()		
+    NULL,				// unload()		
+    &logging_on_rx_msg,			// on_rx_request()	
+    &logging_on_rx_msg,			// on_rx_response()	
+    &logging_on_tx_msg,			// on_tx_request.	
+    &logging_on_tx_msg,			// on_tx_response()	
+    NULL,				// on_tsx_state()	
 
-
+};
 
 /* This is a PJSIP module to be registered by application to handle
  * incoming requests outside any dialogs/transactions. The main purpose
@@ -165,70 +65,91 @@ static pjsip_module mod_simpleua =
 };
 
 
+ 
+///////////////////////////////// <Erase>
+static pj_bool_t	     g_complete=PJ_TRUE;    // Quit flag.		
+//static pjsip_endpoint	    *sip_endpt;	    // SIP endpoint.		
 
-// Notification on incoming messages 
-static pj_bool_t logging_on_rx_msg(pjsip_rx_data *rdata)
+
+
+pjsip_dialog *cdlg;
+
+static pjmedia_endpt	    *g_med_endpt;   // Media endpoint.		
+
+static pjmedia_transport_info g_med_tpinfo[MAX_MEDIA_CNT]; 
+					    // Socket info for media	
+static pjmedia_transport    *g_med_transport[MAX_MEDIA_CNT];
+					    // Media stream transport	
+static pjmedia_sock_info     g_sock_info[MAX_MEDIA_CNT];  
+					    // Socket info array	
+
+// Call variables: 
+static pjsip_inv_session    *g_inv;	    // Current invite session.	
+static pjmedia_stream       *g_med_stream;  // Call's audio stream.			
+
+
+pjmedia_master_port *mp=NULL;
+
+pjmedia_port *stream_port=NULL;
+
+
+pjsip_tx_data *tdata=NULL;
+
+
+pj_bool_t not_first = PJ_FALSE;
+
+///////////////////////////////// </Erase>
+
+/////////////Custom vars/////////////////////////////////////
+pjsip_endpoint  *sip_endpt;
+
+pj_caching_pool cp; // Global pool factory.	
+pj_pool_t       *pool = NULL; // pool for tonegen, .wav player etc.
+
+pjmedia_port    *tonegen_port=NULL;
+pjmedia_port    *player_port=NULL;
+
+pjmedia_endpt   *media_endpt;
+
+pj_timer_entry  entry[2]; // in slot_t ?
+pj_timer_heap_t *timer;
+const pj_time_val     delay = {10, 0};
+
+pj_uint8_t      slots_count=0;
+
+#define SLOTS_Q 20
+
+typedef struct slot_t 
 {
-    PJ_LOG(4,(THIS_FILE, "RX %d bytes %s from %s %s:%d:\n"
-			 "%.*s\n"
-			 "--end msg--",
-			 rdata->msg_info.len,
-			 pjsip_rx_data_get_info(rdata),
-			 rdata->tp_info.transport->type_name,
-			 rdata->pkt_info.src_name,
-			 rdata->pkt_info.src_port,
-			 (int)rdata->msg_info.len,
-			 rdata->msg_info.msg_buf));
+    pj_bool_t           busy; // on_rx_request
     
-    // Always return false, otherwise messages will not get processed! 
-    return PJ_FALSE;
-}
+    pjmedia_transport   *media_transport; // on_rx_request
+    pjmedia_stream      *media_stream; // call_on_media_update
+    pjmedia_port        *stream_port; // call_on_media_update
+    pjmedia_master_port *mp; // call_on_media_update
 
-// Notification on outgoing messages 
-static pj_status_t logging_on_tx_msg(pjsip_tx_data *tdata)
-{
-    
-    /* Important note:
-     *	tp_info field is only valid after outgoing messages has passed
-     *	transport layer. So don't try to access tp_info when the module
-     *	has lower priority than transport layer.
-     */
+    pjsip_inv_session   *inv_ss; // on_rx_request
+    pjsip_dialog        *dlg; // on_rx_request
 
-    PJ_LOG(4,(THIS_FILE, "TX %d bytes %s to %s %s:%d:\n"
-			 "%.*s\n"
-			 "--end msg--",
-			 (tdata->buf.cur - tdata->buf.start),
-			 pjsip_tx_data_get_info(tdata),
-			 tdata->tp_info.transport->type_name,
-			 tdata->tp_info.dst_name,
-			 tdata->tp_info.dst_port,
-			 (int)(tdata->buf.cur - tdata->buf.start),
-			 tdata->buf.start));
+    pjsip_tx_data       *tdata; // on_rx_request
+    pjsip_rx_data       *rdata; // on_rx_request
 
-    // Always return success, otherwise message will not get sent! 
-    return PJ_SUCCESS;
-}
+    pj_pool_t           *ss_pool; // on_rx_request
+    pj_uint8_t          index;
 
-// The module instance. 
-static pjsip_module msg_logger = 
-{
-    NULL, NULL,				// prev, next.		
-    { "mod-msg-log", 13 },		// Name.		
-    -1,					// Id			
-    PJSIP_MOD_PRIORITY_TRANSPORT_LAYER-1,// Priority	        
-    NULL,				// load()		
-    NULL,				// start()		
-    NULL,				// stop()		
-    NULL,				// unload()		
-    &logging_on_rx_msg,			// on_rx_request()	
-    &logging_on_rx_msg,			// on_rx_response()	
-    &logging_on_tx_msg,			// on_tx_request.	
-    &logging_on_tx_msg,			// on_tx_response()	
-    NULL,				// on_tsx_state()	
+    pj_timer_heap_t     *timer_heap; // heap for 2 timers
+    pj_timer_entry      entry[2]; // 0 for accept_call(), 1 for auto_exit()
+} slot_t;
 
-};
+slot_t slots[20];
 
-
+// My custom funcs
+void when_exit (int none);
+void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e);
+void auto_exit (pj_timer_heap_t *ht, pj_timer_entry *e);
+void poolfail_cb (pj_pool_t *pool, pj_size_t size);
+void nullize_slot (slot_t *slot);
+void free_slot_by_inv (pjsip_inv_session *inv);
 /*
  * Callback when INVITE session state has changed.
  * This callback is registered when the invite session module is initialized.
@@ -240,7 +161,7 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 				   pjsip_event *e)
 {
     PJ_UNUSED_ARG(e);
-
+    
     if (inv->state == PJSIP_INV_STATE_DISCONNECTED) {
 
 	PJ_LOG(3,(THIS_FILE, "Call DISCONNECTED [reason=%d (%s)]", 
@@ -248,6 +169,8 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 		  pjsip_get_status_text(inv->cause)->ptr));
 
 	PJ_LOG(3,(THIS_FILE, "One call completed, wait next one..."));
+
+    free_slot_by_inv (slots[13].inv_ss);
 
     if (mp)
         pjmedia_master_port_stop (mp);
@@ -261,27 +184,20 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 	PJ_LOG(3,(THIS_FILE, "\nCall state changed to %s\n", 
 		  pjsip_inv_state_name(inv->state)));
 
-    }
-
-    
+    }    
 }
-
-
-/* This callback is called when dialog has forked. */
-static void call_on_forked(pjsip_inv_session *inv, pjsip_event *e)
-{
-    /* To be done... */
-    PJ_UNUSED_ARG(inv);
-    PJ_UNUSED_ARG(e);
-}
-
 
 /*
  * Callback when incoming requests outside any transactions and any
  * dialogs are received. We're only interested to hande incoming INVITE
  * request, and we'll reject any other requests with 500 response.
  */
-static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
+
+// Also register slots (fill this fields): make media_transport, pjsip_inv, dialog,
+// rdata, tdata, session pool, timers (create timer heap, 2 timer entries). 
+// Sets slot as busy;
+// Starts: timer for 200 OK
+static pj_bool_t on_rx_request( pjsip_rx_data *rdata ) 
 {
     pj_sockaddr hostaddr;
     char temp[80], hostip[PJ_INET6_ADDRSTRLEN];
@@ -302,7 +218,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 	    pj_str_t reason = pj_str("Simple UA unable to handle "
 				     "this request");
 
-	    pjsip_endpt_respond_stateless( g_endpt, rdata, 
+	    pjsip_endpt_respond_stateless( sip_endpt, rdata, 
 					   500, &reason,
 					   NULL, NULL);
 	}
@@ -317,7 +233,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 
 	pj_str_t reason = pj_str("Busy here");
 
-	pjsip_endpt_respond_stateless( g_endpt, rdata, 
+	pjsip_endpt_respond_stateless( sip_endpt, rdata, 
 				       486, &reason,
 				       NULL, NULL);
 	return PJ_TRUE;
@@ -326,12 +242,12 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 
    // Verify that we can handle the request. 
     status = pjsip_inv_verify_request(rdata, &options, NULL, NULL,
-				      g_endpt, NULL);
+				      sip_endpt, NULL);
     if (status != PJ_SUCCESS) {
 
 	pj_str_t reason = pj_str("Sorry Simple UA can not handle this INVITE");
 
-	pjsip_endpt_respond_stateless( g_endpt, rdata, 
+	pjsip_endpt_respond_stateless( sip_endpt, rdata, 
 				       500, &reason,
 				       NULL, NULL);
 	return PJ_TRUE;
@@ -341,8 +257,8 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
      //Generate Contact URI
      
     if (pj_gethostip(AF, &hostaddr) != PJ_SUCCESS) {
-	//pj_perror(THIS_FILE, "Unable to retrieve local host IP", status);
-	return PJ_TRUE;
+	    //pj_perror(THIS_FILE, "Unable to retrieve local host IP", status);
+	    return PJ_TRUE;
     }
     pj_sockaddr_print(&hostaddr, hostip, sizeof(hostip), 2);
 
@@ -357,7 +273,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 						&local_uri, // contact 
 						&dlg);
     if (status != PJ_SUCCESS) {
-	pjsip_endpt_respond_stateless(g_endpt, rdata, 500, NULL,
+	pjsip_endpt_respond_stateless(sip_endpt, rdata, 500, NULL,
 				      NULL, NULL);
 	return PJ_TRUE;
     }
@@ -392,6 +308,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     pjsip_dlg_dec_lock(dlg);
 
     cdlg = dlg;
+    slots[13].inv_ss = g_inv;
 
     /*
      * Initially send 180 response.
@@ -423,10 +340,8 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     status = pjsip_inv_send_msg(g_inv, tdata); 
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
     
-   
     
-    delay.sec = 10; 
-    delay.msec = 0;
+    
     pj_timer_heap_schedule(timer, &entry[0], &delay);
 
     
@@ -446,6 +361,9 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
  * We are interested with this callback because we want to start media
  * as soon as SDP negotiation is completed.
  */
+
+// Also register slots: master port, stream port, stream
+// Starts: master port, timer for exit
 static void call_on_media_update( pjsip_inv_session *inv,
 				  pj_status_t status)
 {
@@ -515,6 +433,9 @@ static void call_on_media_update( pjsip_inv_session *inv,
     // Done with media. 
 }
 
+
+
+/////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
     
@@ -530,6 +451,13 @@ int main(int argc, char *argv[])
     // Then init PJLIB-UTIL: 
     status = pjlib_util_init();
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
+
+    // Init slots
+    for (pj_uint8_t i2=0; i2<20; i2++)
+    {
+        nullize_slot (&slots[i2]);
+        slots[i2].index = i2; 
+    }
 
 
     // Must create a pool factory before we can allocate any memory. 
@@ -558,7 +486,7 @@ int main(int argc, char *argv[])
 	// Create the endpoint: 
 
 	status = pjsip_endpt_create(&cp.factory, endpt_name, 
-				    &g_endpt);
+				    &sip_endpt);
 	PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
     }
 
@@ -572,13 +500,17 @@ int main(int argc, char *argv[])
     {
 	pj_sockaddr addr;
 
-	pj_sockaddr_init(AF, &addr, NULL, (pj_uint16_t)SIP_PORT);
+    //////////
+    // Erase IPv6
+    //////////
+	
+    pj_sockaddr_init(AF, &addr, NULL, (pj_uint16_t)SIP_PORT);
 	
 	if (AF == pj_AF_INET()) {
-	    status = pjsip_udp_transport_start( g_endpt, &addr.ipv4, NULL, 
+	    status = pjsip_udp_transport_start( sip_endpt, &addr.ipv4, NULL, 
 						1, NULL);
 	} else if (AF == pj_AF_INET6()) {
-	    status = pjsip_udp_transport_start6(g_endpt, &addr.ipv6, NULL,
+	    status = pjsip_udp_transport_start6(sip_endpt, &addr.ipv6, NULL,
 						1, NULL);
 	} else {
 	    status = PJ_EAFNOTSUP;
@@ -594,7 +526,7 @@ int main(int argc, char *argv[])
      * Init transaction layer.
      * This will create/initialize transaction hash tables etc.
      */
-    status = pjsip_tsx_layer_init_module(g_endpt);
+    status = pjsip_tsx_layer_init_module(sip_endpt);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
 
@@ -602,7 +534,7 @@ int main(int argc, char *argv[])
      * Initialize UA layer module.
      * This will create/initialize dialog hash tables etc.
      */
-    status = pjsip_ua_init_module( g_endpt, NULL );
+    status = pjsip_ua_init_module( sip_endpt, NULL );
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
 
@@ -628,24 +560,24 @@ int main(int argc, char *argv[])
 	inv_cb.on_media_update = &call_on_media_update;
 
 	// Initialize invite session module:  
-	status = pjsip_inv_usage_init(g_endpt, &inv_cb);
+	status = pjsip_inv_usage_init(sip_endpt, &inv_cb);
 	PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
     }
 
     // Initialize 100rel support 
-    status = pjsip_100rel_init_module(g_endpt);
+    status = pjsip_100rel_init_module(sip_endpt);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
 
     
      // Register our module to receive incoming requests.
      
-    status = pjsip_endpt_register_module( g_endpt, &mod_simpleua);
+    status = pjsip_endpt_register_module( sip_endpt, &mod_simpleua);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
     
      // Register message logger module.
      
-    status = pjsip_endpt_register_module( g_endpt, &msg_logger);
+    status = pjsip_endpt_register_module( sip_endpt, &msg_logger);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
 
@@ -743,34 +675,18 @@ int main(int argc, char *argv[])
     while ( g_complete )
     {
         pj_time_val timeout = {0, 10};
-	    pjsip_endpt_handle_events(g_endpt, &timeout);
+	    pjsip_endpt_handle_events(sip_endpt, &timeout);
         
         pj_timer_heap_poll(timer, NULL);
-        //char option[10];
-
-	    /*puts("Press 'h' to hangup all calls, 'q' to quit");
-	    if (fgets(option, sizeof(option), stdin) == NULL) 
-        {
-	        puts("EOF while reading stdin, will quit now..");
-	        break;
-	    }
-
-	if (option[0] == 'q')
-	    g_complete = PJ_FALSE; */
 
     }
 /////////////////////////////////////////////////////////////////////////////
 
-    if (g_inv)
-        pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
+    if (g_inv);
+        //pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
 
     if (mp) 
         pjmedia_master_port_destroy (mp, 0);
-
-
-    if (sound_port)
-	    pjmedia_snd_port_destroy(sound_port);
-
 
 
     // Destroy streams 
@@ -792,12 +708,146 @@ int main(int argc, char *argv[])
 	pjmedia_endpt_destroy(g_med_endpt);
 
     // Deinit pjsip endpoint 
-    if (g_endpt)
-	pjsip_endpt_destroy(g_endpt);
+    if (sip_endpt)
+	pjsip_endpt_destroy(sip_endpt);
 
     // Release pool 
     if (pool)
 	pj_pool_release(pool);
 
     return 0;
+}
+
+/////////Custom and unused////////////////////////////
+
+/////////Custom funcs/////////////////////////////
+
+void when_exit (int none)
+{
+    PJ_UNUSED_ARG(none);
+    g_complete = PJ_FALSE;
+}
+
+void nullize_slot (slot_t *slot)
+{
+    pj_bzero( (void*)slot, sizeof(slot_t) - sizeof(pj_uint8_t) );    
+}
+
+void free_slot_by_inv (pjsip_inv_session *inv)
+{
+    for (pj_uint8_t i=0; i<20; i++)
+    {
+        if (slots[i].inv_ss == inv)
+        {
+            pjsip_inv_end_session (inv, 200, NULL, &slots[i].tdata);
+            nullize_slot (&slots[i]);
+            return;
+        }
+    }
+}
+
+
+// Sends 200 OK
+// Switch master's port u_port from tonegen to player_port
+// Starts timer for exits
+void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
+{
+    // ! Switch global vars to slot's one
+    pj_status_t status;
+    PJ_UNUSED_ARG(ht);
+    PJ_UNUSED_ARG(e);
+
+    if (g_inv == NULL) 
+        return; 
+    
+    
+    status =   pjsip_inv_answer
+                (
+                    g_inv, 200, NULL, NULL, &tdata 
+                );
+    PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
+    
+    
+    pjmedia_master_port_stop(mp);
+    pjmedia_master_port_set_uport (mp, player_port); 
+    pjmedia_master_port_start (mp);
+    status = pjsip_inv_send_msg(g_inv, tdata);
+   
+    pj_timer_heap_schedule(timer, &entry[1], &delay);
+}
+
+// Sends BYE, 
+void auto_exit (pj_timer_heap_t *ht, pj_timer_entry *e) // callback
+{
+    PJ_UNUSED_ARG(ht);
+    PJ_UNUSED_ARG(e);
+    pjmedia_master_port_stop (mp);
+
+    free_slot_by_inv (slots[13].inv_ss);
+
+    /*pjsip_tx_data *bye_data;
+    pjsip_dlg_create_request (cdlg, &pjsip_bye_method, -1, &bye_data);
+    pjsip_dlg_send_request (cdlg, bye_data, -1, NULL); */
+    g_inv = NULL; 
+
+}
+
+// prosto tak dobavil
+void poolfail_cb (pj_pool_t *pool, pj_size_t size)
+{
+    pj_perror (5, "app", 0, "Ploho" );
+    exit (1);
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+// Notification on incoming messages 
+static pj_bool_t logging_on_rx_msg(pjsip_rx_data *rdata)
+{
+    PJ_LOG(4,(THIS_FILE, "RX %d bytes %s from %s %s:%d:\n"
+			 "%.*s\n"
+			 "--end msg--",
+			 rdata->msg_info.len,
+			 pjsip_rx_data_get_info(rdata),
+			 rdata->tp_info.transport->type_name,
+			 rdata->pkt_info.src_name,
+			 rdata->pkt_info.src_port,
+			 (int)rdata->msg_info.len,
+			 rdata->msg_info.msg_buf));
+    
+    // Always return false, otherwise messages will not get processed! 
+    return PJ_FALSE;
+}
+
+// Notification on outgoing messages 
+static pj_status_t logging_on_tx_msg(pjsip_tx_data *tdata)
+{
+    
+    /* Important note:
+     *	tp_info field is only valid after outgoing messages has passed
+     *	transport layer. So don't try to access tp_info when the module
+     *	has lower priority than transport layer.
+     */
+
+    PJ_LOG(4,(THIS_FILE, "TX %d bytes %s to %s %s:%d:\n"
+			 "%.*s\n"
+			 "--end msg--",
+			 (tdata->buf.cur - tdata->buf.start),
+			 pjsip_tx_data_get_info(tdata),
+			 tdata->tp_info.transport->type_name,
+			 tdata->tp_info.dst_name,
+			 tdata->tp_info.dst_port,
+			 (int)(tdata->buf.cur - tdata->buf.start),
+			 tdata->buf.start));
+
+    // Always return success, otherwise message will not get sent! 
+    return PJ_SUCCESS;
+}
+
+/* This callback is called when dialog has forked. */
+static void call_on_forked(pjsip_inv_session *inv, pjsip_event *e)
+{
+    PJ_LOG (3, (THIS_FILE, "\n\n!!!DIALOG FORKED!!!\n\n"));
+    PJ_UNUSED_ARG(inv);
+    PJ_UNUSED_ARG(e);
 }
