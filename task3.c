@@ -1,3 +1,4 @@
+// User_data in timer_entry
 #include <pjsip.h>
 #include <pjmedia.h>
 #include <pjmedia-codec.h>
@@ -5,6 +6,7 @@
 #include <pjsip_simple.h>
 #include <pjlib-util.h>
 #include <pjlib.h>
+#include <signal.h>
 
 void poolfail_cb (pj_pool_t *pool, pj_size_t size)
 {
@@ -31,7 +33,7 @@ void poolfail_cb (pj_pool_t *pool, pj_size_t size)
 // Static variables.
  
 
-static pj_bool_t	     g_complete;    // Quit flag.		
+static pj_bool_t	     g_complete=PJ_TRUE;    // Quit flag.		
 static pjsip_endpoint	    *g_endpt;	    // SIP endpoint.		
 static pj_caching_pool	     cp;	    // Global pool factory.	
 pj_pool_t *pool = NULL;
@@ -59,7 +61,6 @@ pjmedia_master_port *mp=NULL;
 pjmedia_port *tonegen_port=NULL;
 pjmedia_port *stream_port=NULL;
 pjmedia_port *player_port=NULL;
-pjmedia_port *out_port=NULL;
 
 
 pjsip_tx_data *tdata=NULL;
@@ -69,16 +70,22 @@ pj_timer_entry entry[2];
 pj_timer_heap_t *timer;
 pj_time_val delay;
 
+pj_bool_t not_first = PJ_FALSE;
+
+void when_exit (int none)
+{
+    PJ_UNUSED_ARG(none);
+    g_complete = PJ_FALSE;
+}
 
 
-
-void pjtimer_callback(pj_timer_heap_t *ht, pj_timer_entry *e)
+void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e)
 {
     pj_status_t status;
     PJ_UNUSED_ARG(ht);
     PJ_UNUSED_ARG(e);
 
-    if (!g_inv)
+    if (g_inv->state == PJSIP_INV_STATE_DISCONNECTED)
         return;
     
     status =   pjsip_inv_answer
@@ -87,25 +94,14 @@ void pjtimer_callback(pj_timer_heap_t *ht, pj_timer_entry *e)
                 );
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
     
-    status = pjmedia_wav_player_port_create 
-                 (  
-                          pool,	// memory pool	    
-					      "task2.wav",	// file to play	 (16 bitrate, 8 khz, mono)
-					      20,	// ptime.	    
-					      0,	// flags	    
-					      0,	// default buffer   
-					      &player_port// returned port    
-				 );
-    if (PJ_SUCCESS != status)
-    {
-        pj_perror (5, "wav pjmedia create", status, "egog");
-        exit (1);
-    }
+    
     pjmedia_master_port_stop(mp);
     pjmedia_master_port_set_uport (mp, player_port); 
     pjmedia_master_port_start (mp);
     status = pjsip_inv_send_msg(g_inv, tdata);
    
+   delay.sec = 10;
+   pj_timer_heap_schedule(timer, &entry[1], &delay);
 
 }
 
@@ -113,12 +109,20 @@ void auto_exit (pj_timer_heap_t *ht, pj_timer_entry *e)
 {
     PJ_UNUSED_ARG(ht);
     PJ_UNUSED_ARG(e);
-    //g_complete = 1;
-    if (!g_inv)
+    pjmedia_master_port_stop (mp);
+
+    if (g_inv->state == PJSIP_INV_STATE_DISCONNECTED)
+    {
+        
         return;
+    }
+
+    pjmedia_master_port_stop (mp);
     pjsip_tx_data *bye_data;
     pjsip_dlg_create_request (cdlg, &pjsip_bye_method, -1, &bye_data);
-    pjsip_dlg_send_request (cdlg, bye_data, -1, NULL); 
+    pjsip_dlg_send_request (cdlg, bye_data, -1, NULL);
+    g_inv = NULL; 
+
 }
 
 // Callback to be called when SDP negotiation is done in the call: 
@@ -243,10 +247,13 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 		  inv->cause,
 		  pjsip_get_status_text(inv->cause)->ptr));
 
-	PJ_LOG(3,(THIS_FILE, "One call completed, application quitting..."));
-	//g_complete = 1;
+	PJ_LOG(3,(THIS_FILE, "One call completed, wait next one..."));
 
-    pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
+    if (mp)
+        pjmedia_master_port_stop (mp);
+    
+    not_first = PJ_TRUE;
+    
     g_inv = NULL;
 
     } else {
@@ -308,10 +315,10 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
    
     if (g_inv) {
 
-	pj_str_t reason = pj_str("Another call is in progress");
+	pj_str_t reason = pj_str("Busy here");
 
 	pjsip_endpt_respond_stateless( g_endpt, rdata, 
-				       500, &reason,
+				       486, &reason,
 				       NULL, NULL);
 	return PJ_TRUE;
 
@@ -416,15 +423,13 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     status = pjsip_inv_send_msg(g_inv, tdata); 
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
     
-    //g2_inv = g_inv;
-    //r2data = rdata;
-    //т.к. пускаются одновременно, то и промежуток между 183 и 200 маленький
-    delay.sec = 10; здесь нужно таймеры разъединить, чтоб запускались не одновременно
+   
+    
+    delay.sec = 10; 
     delay.msec = 0;
     pj_timer_heap_schedule(timer, &entry[0], &delay);
 
-    delay.sec = 15;
-    pj_timer_heap_schedule(timer, &entry[1], &delay);
+    
 
 
      
@@ -500,20 +505,11 @@ static void call_on_media_update( pjsip_inv_session *inv,
     
     pjmedia_stream_get_port(g_med_stream, &stream_port);
 
-     
-    pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &tonegen_port);
+	pjmedia_master_port_set_dport (mp, stream_port);
+    
+    if (not_first)
+        pjmedia_master_port_set_uport (mp, tonegen_port);    
 
-    pjmedia_tone_desc tone[1];
-    tone[0].freq1 = 400;
-    tone[0].freq2 = 0;
-    tone[0].on_msec = 1000;
-    tone[0].off_msec = 4000;
-
-    pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP); 
-  
-
-
-	pjmedia_master_port_create (pool, tonegen_port, stream_port, 0, &mp);
 	pjmedia_master_port_start (mp);
 
     // Done with media. 
@@ -696,43 +692,90 @@ int main(int argc, char *argv[])
 		  sizeof(pjmedia_sock_info));
     }
 
+	
     
+    pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &tonegen_port);
 
+    pjmedia_tone_desc tone[1];
+    tone[0].freq1 = 400;
+    tone[0].freq2 = 0;
+    tone[0].on_msec = 1000;
+    tone[0].off_msec = 4000;
 
-	PJ_LOG(5,(THIS_FILE, "Ready to accept incoming calls..."));
-    
+    pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP);
 
+    status = pjmedia_wav_player_port_create 
+                 (  
+                          pool,	// memory pool	    
+					      "task2.wav",	// file to play	 (16 bitrate, 8 khz, mono)
+					      20,	// ptime.	    
+					      0,	// flags	    
+					      0,	// default buffer   
+					      &player_port// returned port    
+				 );
+    if (PJ_SUCCESS != status)
+    {
+        pj_perror (5, "wav pjmedia create", status, "egog");
+        exit (1);
+    }
 
-    
     
     pj_timer_heap_create(pool, 1, &timer);
 
-    pj_timer_entry_init (&entry[0], 0, NULL, &pjtimer_callback);
+    pj_timer_entry_init (&entry[0], 0, NULL, &accept_call);
     pj_timer_entry_init (&entry[1], 1, NULL, &auto_exit);
 
-    while ( !g_complete )
+    pjmedia_port *null_port=NULL;
+    pjmedia_null_port_create 	(pool,
+		8000,
+		1,
+		160,
+		16,
+		&null_port 
+	); 	
+
+    pjmedia_master_port_create (pool, tonegen_port, null_port, 0, &mp);
+
+    PJ_LOG(5,(THIS_FILE, "Ready to accept incoming calls..."));
+
+    signal (SIGINT, when_exit);
+/////////////////////////////////////////////////////////////////////////////
+    while ( g_complete )
     {
         pj_time_val timeout = {0, 10};
 	    pjsip_endpt_handle_events(g_endpt, &timeout);
         
         pj_timer_heap_poll(timer, NULL);
+        //char option[10];
+
+	    /*puts("Press 'h' to hangup all calls, 'q' to quit");
+	    if (fgets(option, sizeof(option), stdin) == NULL) 
+        {
+	        puts("EOF while reading stdin, will quit now..");
+	        break;
+	    }
+
+	if (option[0] == 'q')
+	    g_complete = PJ_FALSE; */
 
     }
+/////////////////////////////////////////////////////////////////////////////
 
-    //pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
+    if (g_inv)
+        pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
 
     if (mp) 
         pjmedia_master_port_destroy (mp, 0);
 
 
     if (sound_port)
-	pjmedia_snd_port_destroy(sound_port);
+	    pjmedia_snd_port_destroy(sound_port);
 
 
 
     // Destroy streams 
     if (g_med_stream)
-	pjmedia_stream_destroy(g_med_stream);
+	    pjmedia_stream_destroy(g_med_stream);
 
 
     // Destroy media transports 
