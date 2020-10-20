@@ -710,7 +710,10 @@ int main(int argc, char *argv[])
     }
 /////////////////////////////////////////////////////////////////////////////
 
-    if (g_inv);
+    for (int i=0; i<20; i++)
+        free_slot_by_inv (slots[i].inv_ss);
+    
+    /*if (g_inv);
         //pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
 
     if (mp) 
@@ -733,7 +736,7 @@ int main(int argc, char *argv[])
 
     // Deinit pjmedia endpoint 
     if (g_med_endpt)
-	pjmedia_endpt_destroy(g_med_endpt);
+	pjmedia_endpt_destroy(g_med_endpt); */
 
     // Deinit pjsip endpoint 
     if (sip_endpt)
@@ -758,7 +761,7 @@ void when_exit (int none)
 
 void nullize_slot (slot_t *slot)
 {
-    pj_bzero( (void*)slot, sizeof(slot_t) - sizeof(pj_uint8_t) );    
+    pj_bzero( (void*)slot, sizeof(slot_t) );    
 }
 
 int get_index_by_inv (pjsip_inv_session *inv)
@@ -778,8 +781,15 @@ void free_slot_by_inv (pjsip_inv_session *inv)
     int i = get_index_by_inv (inv);
     if (i == -1)
         return;
-    pjmedia_master_port_stop (slots[i].mp);
-    pjsip_inv_end_session (inv, 200, NULL, &slots[i].tdata);
+    if (slots[i].busy == 1 )
+    {
+        pjmedia_master_port_stop (slots[i].mp);
+        pjsip_tx_data *bye_data;
+        pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &bye_data);
+        pjsip_dlg_send_request (slots[i].dlg, bye_data, -1, NULL);  
+        pjsip_inv_end_session (slots[i].inv_ss, 200, NULL, &slots[i].tdata);
+    }
+    
     nullize_slot (&slots[i]);
 }
 
@@ -819,14 +829,13 @@ void auto_exit (pj_timer_heap_t *ht, pj_timer_entry *e) // callback
     uint8_t *index = (uint8_t*) e->user_data;
     slot_t *tmp = &slots[ *index ];
     //PJ_UNUSED_ARG(e);
-    pjmedia_master_port_stop (tmp->mp);
+    //pjmedia_master_port_stop (tmp->mp);
 
-    //free_slot_by_inv (slots[13].inv_ss);
-    pjsip_inv_end_session (tmp->inv_ss, 200, NULL, &tmp->tdata);
+    free_slot_by_inv (tmp->inv_ss);
+    //pjsip_inv_end_session (tmp->inv_ss, 200, NULL, &tmp->tdata);
     /*pjsip_tx_data *bye_data;
     pjsip_dlg_create_request (cdlg, &pjsip_bye_method, -1, &bye_data);
-    pjsip_dlg_send_request (cdlg, bye_data, -1, NULL); */
-    g_inv = NULL; 
+    pjsip_dlg_send_request (cdlg, bye_data, -1, NULL); */  
 
 }
 
