@@ -7,6 +7,8 @@
 #include <pjlib.h>
 #include <signal.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 // For logging purpose. 
 #define THIS_FILE   "TASK 3.3"
@@ -67,39 +69,7 @@ static pjsip_module mod_simpleua =
 
 
  
-///////////////////////////////// <Erase>
-static pj_bool_t	     g_complete=PJ_TRUE;    // Quit flag.		
-//static pjsip_endpoint	    *sip_endpt;	    // SIP endpoint.		
 
-
-
-pjsip_dialog *cdlg;
-
-static pjmedia_endpt	    *g_med_endpt;   // Media endpoint.		
-
-static pjmedia_transport_info g_med_tpinfo[MAX_MEDIA_CNT]; 
-					    // Socket info for media	
-static pjmedia_transport    *g_med_transport[MAX_MEDIA_CNT];
-					    // Media stream transport	
-static pjmedia_sock_info     g_sock_info[MAX_MEDIA_CNT];  
-					    // Socket info array	
-
-// Call variables: 
-	    // Current invite session.	
-static pjmedia_stream       *g_med_stream;  // Call's audio stream.			
-
-
-pjmedia_master_port *mp=NULL;
-
-pjmedia_port *stream_port=NULL;
-static pjsip_inv_session    *g_inv;
-
-pjsip_tx_data *tdata=NULL;
-
-
-pj_bool_t not_first = PJ_FALSE;
-
-///////////////////////////////// </Erase>
 
 /////////////Custom vars/////////////////////////////////////
 pjsip_endpoint  *sip_endpt;
@@ -107,28 +77,33 @@ pjsip_endpoint  *sip_endpt;
 pj_caching_pool cp; // Global pool factory.	
 pj_pool_t       *pool = NULL; // pool for tonegen, .wav player etc.
 
+pj_bool_t g_complete = PJ_TRUE;
+
 pjmedia_port    *tonegen_port=NULL;
 pjmedia_port    *player_port=NULL;
 
 pjmedia_endpt     *media_endpt;
 
-pj_timer_entry  entry[2]; // in slot_t ?
+//pj_timer_entry  entry[2]; // in slot_t ?
 pj_timer_heap_t *timer;
 const pj_time_val     delay = {10, 0};
 
-uint8_t      slots_count=0;
+//pj_bool_t slots_st[20];
+uint8_t slots_count=20;
+pj_mutex_t *dec_mutex, *inc_mutex, *mutex;
 
 #define SLOTS_Q 19
 
 typedef struct slot_t 
 {
-    pj_bool_t           busy; // on_rx_request
     
+    //pj_sem_t            *sem; // on_rx_request; wait- post+
+    //pj_mutex_t          *mutex;
     pjmedia_transport   *media_transport; // on_rx_request
     pjmedia_stream      *media_stream; // call_on_media_update
     pjmedia_port        *stream_port; // call_on_media_update
     pjmedia_master_port *mp; // call_on_media_update
-    pjmedia_endpt   *media_endpt;
+    //pjmedia_endpt       *media_endpt;
     pjmedia_sock_info   *media_sock_info;
 
     pjsip_inv_session   *inv_ss; // on_rx_request
@@ -138,12 +113,16 @@ typedef struct slot_t
     pjsip_rx_data       *rdata; // on_rx_request
 
     pj_pool_t           *ss_pool; // on_rx_request
-    pj_uint8_t          index;
+    //pj_uint8_t          index;
 
     pj_timer_heap_t     *timer_heap; // heap for 2 timers
     pj_timer_entry      entry[2]; // 0 for accept_call(), 1 for auto_exit()
+
+    pj_bool_t           busy;
+    
    
 } slot_t;
+
 
 slot_t slots[20];
 
@@ -155,6 +134,8 @@ void poolfail_cb (pj_pool_t *pool, pj_size_t size);
 void nullize_slot (slot_t *slot);
 void free_slot_by_inv (pjsip_inv_session *inv);
 int get_index_by_inv (pjsip_inv_session *inv); 
+slot_t* get_slot ();
+void free_slot (slot_t *slot);
 /*
  * Callback when INVITE session state has changed.
  * This callback is registered when the invite session module is initialized.
@@ -203,6 +184,7 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 // Starts: timer for 200 OK
 static pj_bool_t on_rx_request( pjsip_rx_data *rdata ) 
 {
+    printf ("\n\n\nON_RX_REQUEST()\n\n\n");
     pj_sockaddr hostaddr;
     
     char temp[80], hostip[PJ_INET6_ADDRSTRLEN];
@@ -210,13 +192,15 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     pjsip_dialog *dlg;
     pjmedia_sdp_session *local_sdp;
     pjsip_inv_session *inv;
+    pjsip_tx_data *tdata=NULL;
     
     unsigned options = 0;
     pj_status_t status;
     
+    // get free slot
+
     
-
-
+    
     
      // Respond (statelessly) any non-INVITE requests with 500 
      
@@ -236,8 +220,10 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 
     
      // Reject INVITE if we already have an INVITE session in progress.
-   
-    if (slots_count == SLOTS_Q) {
+    
+    slot_t *tmp = get_slot ();
+    
+    if (tmp == NULL) {
 
 	pj_str_t reason = pj_str("Busy here");
 
@@ -247,7 +233,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 	return PJ_TRUE;
 
     }
-    slot_t *tmp = &slots[0];
+    
 
    // Verify that we can handle the request. 
     status = pjsip_inv_verify_request(rdata, &options, NULL, NULL,
@@ -295,7 +281,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     pjmedia_transport *media_transport; 
     
     status = pjmedia_transport_udp_create3(media_endpt, AF, NULL, NULL, 
-					       RTP_PORT + slots_count*2, 0, 
+					       RTP_PORT + 1 + slots_count*2, 0, 
 					       &media_transport);
 	if (status != PJ_SUCCESS) {
 	    
@@ -334,17 +320,21 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     
     
     // Register slot
-    tmp->busy = PJ_TRUE;
     tmp->inv_ss = inv;
     tmp->dlg = dlg;
     tmp->rdata = rdata;
+    tmp->tdata = tdata;
     tmp->ss_pool = tmp->inv_ss->pool; 
     tmp->media_sock_info = &media_sock_info;
-    tmp->media_endpt = media_endpt;
+    //tmp->media_endpt = media_endpt;
     tmp->media_transport = media_transport;
     
+    pj_timer_heap_create (tmp->ss_pool, 2, &tmp->timer_heap);
 
+    pj_timer_entry_init (&tmp->entry[0], 0, (void*)tmp, &accept_call);
+    pj_timer_entry_init (&tmp->entry[1], 1, (void*)tmp, &auto_exit);
 
+    
     /*
      * Initially send 180 response.
      *
@@ -363,10 +353,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 
     
 
-    pj_timer_heap_create (tmp->ss_pool, 2, &tmp->timer_heap);
-
-    pj_timer_entry_init (&tmp->entry[0], 0, (void*)&slots_count, &accept_call);
-    pj_timer_entry_init (&tmp->entry[1], 1, (void*)&slots_count, &auto_exit);
+    
 
     
     status = pjsip_inv_answer
@@ -399,7 +386,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     return PJ_TRUE;
 }
 
- 
+//не принимает следующие звонки
 
 /*
  * Callback when SDP negotiation has completed.
@@ -514,15 +501,6 @@ int main(int argc, char *argv[])
     status = pjlib_util_init();
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
-    // Init slots
-    for (pj_uint8_t i2=0; i2<20; i2++)
-    {
-        nullize_slot (&slots[i2]);
-        slots[i2].index = i2; 
-    }
-
-
-    // Must create a pool factory before we can allocate any memory. 
     pj_caching_pool_init(&cp, &pj_pool_factory_default_policy, 0);
 
 	pool = pj_pool_create( &cp.factory,	    // pool factory	    
@@ -531,6 +509,23 @@ int main(int argc, char *argv[])
 			   4000,	    // increment size	    
 			   &poolfail_cb		    // callback on error    
 			   );
+    // Init slots
+    for (pj_uint8_t i2=0; i2<20; i2++)
+    {
+        nullize_slot (&slots[i2]);
+        //slots_st[i2] = PJ_FALSE;
+        /*status = pj_mutex_create (pool, s, PJ_MUTEX_SIMPLE, &slots[i2].mutex) //pj_sem_create (pool, s, 1, 2, &slots[i2].sem);
+        if (status != PJ_SUCCESS)
+        {
+            pj_perror (5, "main()", status, "error creating mutex");
+            exit (1);
+        } */
+    }
+
+    //pj_mutex_create (pool, "global slots_count-- mutex", PJ_MUTEX_SIMPLE, &inc_mutex);
+    pj_mutex_create (pool, "global slots_count mutex", PJ_MUTEX_SIMPLE, &mutex);
+    // Must create a pool factory before we can allocate any memory. 
+    
 
     // Create global endpoint: 
     {
@@ -559,29 +554,22 @@ int main(int argc, char *argv[])
      * start UDP transport, if it already has an UDP socket (e.g. after it
      * resolves the address with STUN).
      */
-    {
+    
 	pj_sockaddr addr;
 
-    //////////
-    // Erase IPv6
-    //////////
+
 	
     pj_sockaddr_init(AF, &addr, NULL, (pj_uint16_t)SIP_PORT);
 	
-	if (AF == pj_AF_INET()) {
+	if (AF == pj_AF_INET()) 
 	    status = pjsip_udp_transport_start( sip_endpt, &addr.ipv4, NULL, 
 						1, NULL);
-	} else if (AF == pj_AF_INET6()) {
-	    status = pjsip_udp_transport_start6(sip_endpt, &addr.ipv6, NULL,
-						1, NULL);
-	} else {
+	 else 
 	    status = PJ_EAFNOTSUP;
-	}
+	
 
-	if (status != PJ_SUCCESS) {
+	if (status != PJ_SUCCESS) 
 	    return 1;
-	}
-    }
 
 
     /* 
@@ -705,11 +693,17 @@ int main(int argc, char *argv[])
         pj_time_val timeout = {0, 10};
 	    pjsip_endpt_handle_events(sip_endpt, &timeout);
         
-        pj_timer_heap_poll(slots[0].timer_heap, NULL);
+        for (int i=0; i<20; i++)
+            if (slots[i].busy)
+                pj_timer_heap_poll (slots[i].timer_heap, NULL);
 
     }
 /////////////////////////////////////////////////////////////////////////////
 
+    /*for (int i=0; i<20; i++)
+    {
+        pj_mutex_destroy (slots[i].mutex);
+    } */
     for (int i=0; i<20; i++)
         free_slot_by_inv (slots[i].inv_ss);
     
@@ -753,6 +747,28 @@ int main(int argc, char *argv[])
 
 /////////Custom funcs/////////////////////////////
 
+slot_t * get_slot ()
+{
+    pj_mutex_lock (mutex);
+    for (int i=0; i<20; i++)
+        if (!slots[i].busy)
+        {
+            slots[i].busy = PJ_TRUE;
+            slots_count--;
+            pj_mutex_unlock (mutex);
+            return &slots[i];
+        }
+    pj_mutex_unlock (mutex);
+    return NULL;
+}
+
+/*void free_slot (slot_t * slot)
+{
+    pj_mutex_lock (mutex);
+    slot->busy = PJ_FALSE;
+    pj_mutex_unlock (mutex);
+}*/
+
 void when_exit (int none)
 {
     PJ_UNUSED_ARG(none);
@@ -761,12 +777,32 @@ void when_exit (int none)
 
 void nullize_slot (slot_t *slot)
 {
-    pj_bzero( (void*)slot, sizeof(slot_t) );    
+    //slot->sem = NULL;
+    slot->media_transport = NULL;
+    slot->media_stream = NULL;
+    slot->stream_port = NULL;
+    slot->mp = NULL;
+    //slot->media_endpt = NULL;
+    slot->media_sock_info = NULL;
+    slot->inv_ss = NULL;
+    slot-> dlg = NULL;
+    slot-> tdata = NULL;
+    slot->rdata = NULL;
+    slot->ss_pool = NULL;
+    for (int i=0; i<2; i++)
+    {
+        slot->entry[i].cb = NULL;
+        slot->entry[i].id = -1;
+        slot->entry[i].user_data = NULL;
+        slot->entry[i]._timer_id = 0;
+    }
+    slots_count++;
+    slot->busy = PJ_FALSE;
 }
 
 int get_index_by_inv (pjsip_inv_session *inv)
 {
-    for (pj_uint8_t i=0; i<20; i++)
+    for (int i=0; i<20; i++)
     {
         if (slots[i].inv_ss == inv)
         {
@@ -779,17 +815,22 @@ int get_index_by_inv (pjsip_inv_session *inv)
 void free_slot_by_inv (pjsip_inv_session *inv)
 {
     int i = get_index_by_inv (inv);
+    
     if (i == -1)
         return;
-    if (slots[i].busy == 1 )
-    {
-        pjmedia_master_port_stop (slots[i].mp);
-        pjsip_tx_data *bye_data;
-        pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &bye_data);
-        pjsip_dlg_send_request (slots[i].dlg, bye_data, -1, NULL);  
-        pjsip_inv_end_session (slots[i].inv_ss, 200, NULL, &slots[i].tdata);
-    }
-    
+    PJ_LOG (5, (THIS_FILE, "!!! Destroying slot#%d", i));
+    pjmedia_master_port_stop (slots[i].mp);
+    pjmedia_master_port_destroy (slots[i].mp, PJ_FALSE);
+    pjmedia_stream_destroy (slots[i].media_stream);
+    pjmedia_transport_close (slots[i].media_transport);
+    pjsip_tx_data *bye_data;
+    pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &bye_data);
+    pjsip_dlg_send_request (slots[i].dlg, bye_data, -1, NULL);
+    //pj_sem_post (slots[i].sem);
+    slots[i].busy = PJ_FALSE;
+    pjsip_inv_end_session (slots[i].inv_ss, 200, NULL, &slots[i].tdata);
+
+
     nullize_slot (&slots[i]);
 }
 
@@ -803,8 +844,8 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
 
     pj_status_t status;
     PJ_UNUSED_ARG(ht);
-    uint8_t *index = (uint8_t*) e->user_data;
-    slot_t *tmp = &slots[ *index ];
+    //uint8_t *index = (uint8_t*) ;
+    slot_t *tmp = (slot_t*)e->user_data;
     
     
     status =   pjsip_inv_answer
@@ -826,12 +867,12 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
 void auto_exit (pj_timer_heap_t *ht, pj_timer_entry *e) // callback
 {
     PJ_UNUSED_ARG(ht);
-    uint8_t *index = (uint8_t*) e->user_data;
-    slot_t *tmp = &slots[ *index ];
+    //uint8_t *index = (uint8_t*) e->user_data;
+    slot_t *tmp = (slot_t*)e->user_data;
     //PJ_UNUSED_ARG(e);
     //pjmedia_master_port_stop (tmp->mp);
-
-    free_slot_by_inv (tmp->inv_ss);
+    if (tmp->busy)
+        free_slot_by_inv (tmp->inv_ss);
     //pjsip_inv_end_session (tmp->inv_ss, 200, NULL, &tmp->tdata);
     /*pjsip_tx_data *bye_data;
     pjsip_dlg_create_request (cdlg, &pjsip_bye_method, -1, &bye_data);
