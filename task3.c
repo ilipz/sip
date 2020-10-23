@@ -68,7 +68,7 @@ static pjsip_module mod_simpleua =
 };
 
 
- 
+
 
 
 /////////////Custom vars/////////////////////////////////////
@@ -86,8 +86,8 @@ pjmedia_endpt     *media_endpt;
 
 //pj_timer_entry  entry[2]; // in slot_t ?
 pj_timer_heap_t *timer;
-const pj_time_val     delay1 = {50, 0};
-const pj_time_val     delay2 = {60, 0};
+const pj_time_val     delay1 = {10, 0};
+const pj_time_val     delay2 = {10, 0};
 //pj_bool_t slots_st[20];
 uint8_t slots_count=20;
 pj_mutex_t *dec_mutex, *inc_mutex, *mutex;
@@ -186,6 +186,8 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 // rdata, tdata, session pool, timers (create timer heap, 2 timer entries). 
 // Sets slot as busy;
 // Starts: timer for 200 OK
+
+
 static pj_bool_t on_rx_request( pjsip_rx_data *rdata ) 
 {
     printf ("\n\n\nON_RX_REQUEST()\n\n\n");
@@ -390,7 +392,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     return PJ_TRUE;
 }
 
-//не принимает следующие звонки
+
 
 /*
  * Callback when SDP negotiation has completed.
@@ -530,7 +532,7 @@ int main(int argc, char *argv[])
     pj_mutex_create (pool, "global slots_count mutex", PJ_MUTEX_SIMPLE, &mutex);
     // Must create a pool factory before we can allocate any memory. 
     
-
+    
     // Create global endpoint: 
     {
 	const pj_str_t *hostname;
@@ -696,7 +698,7 @@ int main(int argc, char *argv[])
     {
         pj_time_val timeout = {0, 10};
 	    pjsip_endpt_handle_events(sip_endpt, &timeout);
-        
+        printf ("\n\n////////////////////\n\n>> Available: %d <<\n\n////////////////////\n\n", slots_count);
         for (int i=0; i<20; i++)
             if (slots[i].busy)
                 pj_timer_heap_poll (slots[i].timer_heap, NULL);
@@ -802,7 +804,7 @@ void nullize_slot (slot_t *slot)
         slot->entry[i].user_data = NULL;
         slot->entry[i]._timer_id = 0;
     }
-    slots_count++;
+    
     slot->busy = PJ_FALSE;
 }
 
@@ -826,13 +828,16 @@ void free_slot_by_inv (pjsip_inv_session *inv)
         return;
     PJ_LOG (5, (THIS_FILE, "!!! Destroying slot#%d", i));
     //pjmedia_master_port_stop (slots[i].mp);
+
+    if (slots[i].timer_heap)
+        pj_timer_heap_destroy (slots[i].timer_heap);
     if (slots[i].mp)
         pjmedia_master_port_destroy (slots[i].mp, PJ_FALSE);
     if (slots[i].media_stream)
         pjmedia_stream_destroy (slots[i].media_stream);
     if (slots[i].media_transport)
         pjmedia_transport_close (slots[i].media_transport);
-    if (slots[i].dlg)
+    /*if (slots[i].dlg)
     {
         pjsip_tx_data *request_data=NULL;
         pjsip_method *method=NULL;
@@ -850,7 +855,7 @@ void free_slot_by_inv (pjsip_inv_session *inv)
         }
         
         
-    }
+    } */
     
     //pj_sem_post (slots[i].sem);
     
@@ -859,6 +864,7 @@ void free_slot_by_inv (pjsip_inv_session *inv)
 
     nullize_slot (&slots[i]);
     slots[i].busy = PJ_FALSE;
+    slots_count++;
 }
 
 
@@ -884,9 +890,9 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
     
     tmp->state = SPEAKING;
     
-    pjmedia_master_port_stop(tmp->mp);
+    /*pjmedia_master_port_stop(tmp->mp);
     pjmedia_master_port_set_uport (tmp->mp, player_port); 
-    pjmedia_master_port_start (tmp->mp);
+    pjmedia_master_port_start (tmp->mp); */
     status = pjsip_inv_send_msg(tmp->inv_ss, tmp->tdata);
    
     pj_timer_heap_schedule(tmp->timer_heap, &tmp->entry[1], &delay2);
