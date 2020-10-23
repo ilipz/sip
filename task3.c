@@ -837,7 +837,7 @@ void free_slot_by_inv (pjsip_inv_session *inv)
         pjmedia_stream_destroy (slots[i].media_stream);
     if (slots[i].media_transport)
         pjmedia_transport_close (slots[i].media_transport);
-    /*if (slots[i].dlg)
+    if (slots[i].dlg)
     {
         pjsip_tx_data *request_data=NULL;
         pjsip_method *method=NULL;
@@ -855,7 +855,7 @@ void free_slot_by_inv (pjsip_inv_session *inv)
         }
         
         
-    } */
+    } 
     
     //pj_sem_post (slots[i].sem);
     
