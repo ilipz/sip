@@ -86,19 +86,24 @@ pjmedia_endpt     *media_endpt;
 
 //pj_timer_entry  entry[2]; // in slot_t ?
 pj_timer_heap_t *timer;
-const pj_time_val     delay = {10, 0};
-
+const pj_time_val     delay1 = {50, 0};
+const pj_time_val     delay2 = {60, 0};
 //pj_bool_t slots_st[20];
 uint8_t slots_count=20;
 pj_mutex_t *dec_mutex, *inc_mutex, *mutex;
 
 #define SLOTS_Q 19
 
+enum state_t
+{
+    WAITING,
+    RINGING,
+    SPEAKING
+};
+
 typedef struct slot_t 
 {
-    
-    //pj_sem_t            *sem; // on_rx_request; wait- post+
-    //pj_mutex_t          *mutex;
+    enum state_t state;
     pjmedia_transport   *media_transport; // on_rx_request
     pjmedia_stream      *media_stream; // call_on_media_update
     pjmedia_port        *stream_port; // call_on_media_update
@@ -113,7 +118,6 @@ typedef struct slot_t
     pjsip_rx_data       *rdata; // on_rx_request
 
     pj_pool_t           *ss_pool; // on_rx_request
-    //pj_uint8_t          index;
 
     pj_timer_heap_t     *timer_heap; // heap for 2 timers
     pj_timer_entry      entry[2]; // 0 for accept_call(), 1 for auto_exit()
@@ -352,7 +356,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
 
     
-
+    tmp->state = RINGING;
     
 
     
@@ -474,7 +478,7 @@ static void call_on_media_update( pjsip_inv_session *inv,
 	status = pjmedia_master_port_start (tmp->mp);
     if (PJ_SUCCESS != status) 
         pj_perror (5,THIS_FILE, status, "on_media_upd");
-    pj_timer_heap_schedule(tmp->timer_heap, &tmp->entry[0], &delay); // start timer to accept
+    pj_timer_heap_schedule(tmp->timer_heap, &tmp->entry[0], &delay1); // start timer to accept
 
     //pj_timer_heap_schedule(tmp->timer_heap, &tmp->entry[1], &delay);
 
@@ -733,6 +737,7 @@ int main(int argc, char *argv[])
 	pjmedia_endpt_destroy(g_med_endpt); */
 
     // Deinit pjsip endpoint 
+    
     if (sip_endpt)
 	pjsip_endpt_destroy(sip_endpt);
 
@@ -778,6 +783,7 @@ void when_exit (int none)
 void nullize_slot (slot_t *slot)
 {
     //slot->sem = NULL;
+    slot->state = WAITING;
     slot->media_transport = NULL;
     slot->media_stream = NULL;
     slot->stream_port = NULL;
@@ -819,19 +825,40 @@ void free_slot_by_inv (pjsip_inv_session *inv)
     if (i == -1)
         return;
     PJ_LOG (5, (THIS_FILE, "!!! Destroying slot#%d", i));
-    pjmedia_master_port_stop (slots[i].mp);
-    pjmedia_master_port_destroy (slots[i].mp, PJ_FALSE);
-    pjmedia_stream_destroy (slots[i].media_stream);
-    pjmedia_transport_close (slots[i].media_transport);
-    pjsip_tx_data *bye_data;
-    pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &bye_data);
-    pjsip_dlg_send_request (slots[i].dlg, bye_data, -1, NULL);
+    //pjmedia_master_port_stop (slots[i].mp);
+    if (slots[i].mp)
+        pjmedia_master_port_destroy (slots[i].mp, PJ_FALSE);
+    if (slots[i].media_stream)
+        pjmedia_stream_destroy (slots[i].media_stream);
+    if (slots[i].media_transport)
+        pjmedia_transport_close (slots[i].media_transport);
+    if (slots[i].dlg)
+    {
+        pjsip_tx_data *request_data=NULL;
+        pjsip_method *method=NULL;
+        switch (slots[i].state)
+        {
+            case WAITING: break;
+            case SPEAKING: method = &pjsip_bye_method; break; 
+            case RINGING: method = &pjsip_cancel_method; break;
+            default: exit(5);
+        }
+        if (method)
+        {
+            pjsip_dlg_create_request (slots[i].dlg, method, -1, &request_data);
+            pjsip_dlg_send_request (slots[i].dlg, request_data, -1, NULL);
+        }
+        
+        
+    }
+    
     //pj_sem_post (slots[i].sem);
-    slots[i].busy = PJ_FALSE;
-    pjsip_inv_end_session (slots[i].inv_ss, 200, NULL, &slots[i].tdata);
-
+    
+    if (slots[i].inv_ss)
+        pjsip_inv_end_session (slots[i].inv_ss, 200, NULL, &slots[i].tdata);
 
     nullize_slot (&slots[i]);
+    slots[i].busy = PJ_FALSE;
 }
 
 
@@ -846,7 +873,8 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
     PJ_UNUSED_ARG(ht);
     //uint8_t *index = (uint8_t*) ;
     slot_t *tmp = (slot_t*)e->user_data;
-    
+    if (!tmp->busy)
+        return;
     
     status =   pjsip_inv_answer
                 (
@@ -854,13 +882,14 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
                 );
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE); 
     
+    tmp->state = SPEAKING;
     
     pjmedia_master_port_stop(tmp->mp);
     pjmedia_master_port_set_uport (tmp->mp, player_port); 
     pjmedia_master_port_start (tmp->mp);
     status = pjsip_inv_send_msg(tmp->inv_ss, tmp->tdata);
    
-    pj_timer_heap_schedule(tmp->timer_heap, &tmp->entry[1], &delay);
+    pj_timer_heap_schedule(tmp->timer_heap, &tmp->entry[1], &delay2);
 }
 
 // Sends BYE, 

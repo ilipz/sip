@@ -40,6 +40,8 @@ task4-arm:
 	$(ARM_CC) task4.c 
 	gcc task4-arm.o -o task4-arm $(PJ_FLAG)
 
+task3-test:
+	sipp 10.25.72.103:5060 -s 666 -i 10.25.72.103 -d 15s -l 2 -aa -mi 10.25.72.103 -rtp_echo -nd -r 1 -rp 7000
 .PHONY: clean
 	
 clean:
