@@ -1,7 +1,8 @@
 PJ_FLAG =  `pkg-config --cflags --libs libpjproject`
 ARM_CC = arm-linux-gnueabihf-gcc-5 -c 
 CC = gcc  -c -g
-
+IP = 0
+CALLS_PER_SEC = 1
 
 all: task1 task2 task3 task4 task1-arm task2-arm task3-arm task4-arm
 
@@ -41,7 +42,7 @@ task4-arm:
 	gcc task4-arm.o -o task4-arm $(PJ_FLAG)
 
 task3-test:
-	sipp 10.25.72.103:5060 -s 666 -i 10.25.72.103 -d 15s -l 2 -aa -mi 10.25.72.103 -rtp_echo -nd -r 1 -rp 7000
+	sipp $(IP):5060 -s 666 -i $(IP) -d 19s -l 20 -aa -mi $(IP) -rtp_echo -nd -r $(CALLS_PER_SEC)
 .PHONY: clean
 	
 clean:
