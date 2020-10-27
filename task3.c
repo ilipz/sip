@@ -90,6 +90,7 @@ pjmedia_endpt     *media_endpt;
 const pj_time_val     delay1 = {10, 0};
 const pj_time_val     delay2 = {10, 0};
 uint32_t              timer_count=0;
+pjmedia_conf          *conf_b=NULL;
 
 uint8_t slots_count=20;
 
@@ -125,10 +126,11 @@ typedef struct slot_t
 
     //pj_timer_heap_t     *timer_heap; // heap for 2 timers
     pj_timer_entry      entry[2]; // 0 for accept_call(), 1 for auto_exit()
-    pj_uint8_t          entry_id[2];
+    pj_uint16_t          entry_id[2];
 
     pj_mutex_t          *mutex;
     pj_bool_t           busy;
+
     
    
 } slot_t;
@@ -136,6 +138,7 @@ typedef struct slot_t
 
 slot_t slots[20];
 
+uint8_t count486=0;
 // My custom funcs
 void when_exit (int none);
 void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e);
@@ -241,9 +244,13 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 
 	pj_str_t reason = pj_str("Busy here");
 
+    //if (count486++ > 150) g_complete = PJ_FALSE;
+
 	pjsip_endpt_respond_stateless( sip_endpt, rdata, 
 				       486, &reason,
 				       NULL, NULL);
+    printf ("\n\nBUSY HERE\n\n");
+    
 	return PJ_TRUE;
 
     }
@@ -542,6 +549,8 @@ int main(int argc, char *argv[])
     
     // Must create a pool factory before we can allocate any memory. 
     
+    //pjmedia_conf_create (pool, 20, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE || PJMEDIA_CONF_NO_MIC );
+
     
     // Create global endpoint: 
     {
@@ -711,16 +720,13 @@ int main(int argc, char *argv[])
         pj_time_val timeout = {0, 10};
 	    pjsip_endpt_handle_events(sip_endpt, &timeout);
         pj_timer_heap_poll (timer_heap, NULL);
-        printf ("\n\n////////////////////\n\n>> Available: %d <<\n\n////////////////////\n\n", slots_count);
+        //printf ("\n\n////////////////////\n\n>> Available: %d <<\n\n////////////////////\n\n", slots_count);
         
 
     }
 /////////////////////////////////////////////////////////////////////////////
 
-    /*for (int i=0; i<20; i++)
-    {
-        pj_mutex_destroy (slots[i].mutex);
-    } */
+    
     for (int i=0; i<20; i++)
         free_slot_by_inv (slots[i].inv_ss);
     
@@ -749,7 +755,11 @@ int main(int argc, char *argv[])
     if (g_med_endpt)
 	pjmedia_endpt_destroy(g_med_endpt); */
 
-    // Deinit pjsip endpoint 
+    // Deinit pjsip endpoint
+    for (int i=0; i<20; i++)
+    {
+        pj_mutex_destroy (slots[i].mutex);
+    }  
     
     if (sip_endpt)
 	pjsip_endpt_destroy(sip_endpt);
@@ -779,13 +789,6 @@ slot_t * get_slot ()
             }
     return NULL;
 }
-
-/*void free_slot (slot_t * slot)
-{
-    pj_mutex_lock (mutex);
-    slot->busy = PJ_FALSE;
-    pj_mutex_unlock (mutex);
-}*/
 
 void when_exit (int none)
 {
@@ -843,13 +846,14 @@ void free_slot_by_inv (pjsip_inv_session *inv)
     if ( pj_mutex_trylock(slots[i].mutex) != PJ_SUCCESS )
         return;
     
-    PJ_LOG (5, (THIS_FILE, "!!! Destroying slot#%d", i));
+    printf ("\n\n\tDESTROYING SLOT #%d\n\n", i);
     //pjmedia_master_port_stop (slots[i].mp);
 
     /*if (slots[i].timer_heap)
         pj_timer_heap_destroy (slots[i].timer_heap); */
     if (slots[i].mp)
         pjmedia_master_port_destroy (slots[i].mp, PJ_FALSE);
+    
     if (slots[i].media_stream)
         pjmedia_stream_destroy (slots[i].media_stream);
     if (slots[i].media_transport)
@@ -857,13 +861,13 @@ void free_slot_by_inv (pjsip_inv_session *inv)
     pj_timer_heap_cancel_if_active (timer_heap, &slots[i].entry[0], slots[i].entry_id[0]);
     pj_timer_heap_cancel_if_active (timer_heap, &slots[i].entry[1], slots[i].entry_id[1]);
     
-        pjsip_tx_data *request_data=NULL;
-        
-        if (inv->state == PJSIP_INV_STATE_CONFIRMED)
-        {
-            pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &request_data);
-            pjsip_dlg_send_request (slots[i].dlg, request_data, -1, NULL);
-        } else
+    pjsip_tx_data *request_data=NULL;
+    if (inv)   
+    if (inv->state/*<--error here*/ == PJSIP_INV_STATE_CONFIRMED)
+    {
+        pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &request_data);
+        pjsip_dlg_send_request (slots[i].dlg, request_data, -1, NULL);
+    } else
 
     if (inv->state == PJSIP_INV_STATE_EARLY)
     {
