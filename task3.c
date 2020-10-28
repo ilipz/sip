@@ -94,7 +94,7 @@ pjmedia_conf          *conf_b=NULL;
 
 uint8_t slots_count=20;
 
-pj_bool_t go_exit=PJ_TRUE;
+pj_bool_t pause=PJ_FALSE;
 
 pj_timer_heap_t *timer_heap=NULL;
 
@@ -150,6 +150,7 @@ int get_index_by_inv (pjsip_inv_session *inv);
 void free_slot (slot_t *slot);
 slot_t * get_slot ();
 int thread_func (void *p);
+void clean_slots ();
 /*
  * Callback when INVITE session state has changed.
  * This callback is registered when the invite session module is initialized.
@@ -730,6 +731,13 @@ int main(int argc, char *argv[])
     {
         pjsip_endpt_handle_events(sip_endpt, &timeout);
         pj_timer_heap_poll (timer_heap, NULL);
+        if (pause)
+        {
+            printf ("\n\nPRESS 'P' TO CONTINUE...\n\n");
+            while (pause)
+                sleep (1);
+        }
+        
     }
     /*while ( go_exit )
     {
@@ -797,15 +805,34 @@ int thread_func (void *p)
 {
     while (1)
     {
-        if ('q' == getchar())
+       
+        switch ( getchar() )
         {
-            g_complete = PJ_FALSE;
-            break;
+            case 'q':
+                g_complete = PJ_FALSE;
+                return 0;
+            
+            case 'c':
+                clean_slots ();
+                break;
+            
+            case 's':
+                printf ("\n\n\tCOUNT_SLOTS = %u\n\n", slots_count);
+                break;
+            case 'p':
+                pause = !pause;
+                break;
         }
             
     }
     
     return 0;
+}
+
+void clean_slots ()
+{
+    for (int i=0; i<20; i++)
+        free_slot_by_inv (slots[i].inv_ss);
 }
 
 slot_t * get_slot ()

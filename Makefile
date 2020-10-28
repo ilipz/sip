@@ -1,7 +1,7 @@
 PJ_FLAG =  `pkg-config --cflags --libs libpjproject`
 ARM_CC = arm-linux-gnueabihf-gcc-5 -c 
 CC = gcc  -c -g
-IP = 0
+IP = 127.0.0.1
 CALLS_PER_SEC = 1
 
 all: task1 task2 task3 task4 task1-arm task2-arm task3-arm task4-arm
