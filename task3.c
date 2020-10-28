@@ -94,6 +94,7 @@ pjmedia_conf          *conf_b=NULL;
 
 uint8_t slots_count=20;
 
+pj_bool_t go_exit=PJ_TRUE;
 
 pj_timer_heap_t *timer_heap=NULL;
 
@@ -140,7 +141,6 @@ slot_t slots[20];
 
 uint8_t count486=0;
 // My custom funcs
-void when_exit (int none);
 void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e);
 void auto_exit (pj_timer_heap_t *ht, pj_timer_entry *e);
 void poolfail_cb (pj_pool_t *pool, pj_size_t size);
@@ -149,6 +149,7 @@ void free_slot_by_inv (pjsip_inv_session *inv);
 int get_index_by_inv (pjsip_inv_session *inv); 
 void free_slot (slot_t *slot);
 slot_t * get_slot ();
+int thread_func (void *p);
 /*
  * Callback when INVITE session state has changed.
  * This callback is registered when the invite session module is initialized.
@@ -250,7 +251,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 				       486, &reason,
 				       NULL, NULL);
     printf ("\n\nBUSY HERE\n\n");
-    
+
 	return PJ_TRUE;
 
     }
@@ -713,17 +714,30 @@ int main(int argc, char *argv[])
 
     PJ_LOG(5,(THIS_FILE, "Ready to accept incoming calls..."));
 
-    signal (SIGINT, when_exit);
+
+    pj_thread_t *handles_thread=NULL;
+    pj_thread_desc thread_desc; 
+    pj_thread_register ("timer thread", thread_desc, &handles_thread);
+    pj_thread_create (pool, "timer thread", (pj_thread_proc*)thread_func, NULL, PJ_THREAD_DEFAULT_STACK_SIZE, 0, &handles_thread);
+    
 /////////////////////////////////////////////////////////////////////////////
-    while ( g_complete )
+    
+    
+    //pj_thread_join (handles_thread);
+    pj_time_val timeout = {0, 10};
+	
+    while (g_complete)
     {
-        pj_time_val timeout = {0, 10};
-	    pjsip_endpt_handle_events(sip_endpt, &timeout);
+        pjsip_endpt_handle_events(sip_endpt, &timeout);
         pj_timer_heap_poll (timer_heap, NULL);
+    }
+    /*while ( go_exit )
+    {
+        
         //printf ("\n\n////////////////////\n\n>> Available: %d <<\n\n////////////////////\n\n", slots_count);
         
 
-    }
+    } */
 /////////////////////////////////////////////////////////////////////////////
 
     
@@ -762,11 +776,15 @@ int main(int argc, char *argv[])
     }  
     
     if (sip_endpt)
-	pjsip_endpt_destroy(sip_endpt);
+	    pjsip_endpt_destroy(sip_endpt);
+
+    pj_thread_destroy (handles_thread);
+
+    
 
     // Release pool 
     if (pool)
-	pj_pool_release(pool);
+	    pj_pool_release(pool);
 
     return 0;
 }
@@ -774,6 +792,21 @@ int main(int argc, char *argv[])
 /////////Custom and unused////////////////////////////
 
 /////////Custom funcs/////////////////////////////
+
+int thread_func (void *p)
+{
+    while (1)
+    {
+        if ('q' == getchar())
+        {
+            g_complete = PJ_FALSE;
+            break;
+        }
+            
+    }
+    
+    return 0;
+}
 
 slot_t * get_slot ()
 {
@@ -790,11 +823,7 @@ slot_t * get_slot ()
     return NULL;
 }
 
-void when_exit (int none)
-{
-    PJ_UNUSED_ARG(none);
-    g_complete = PJ_FALSE;
-}
+
 
 void nullize_slot (slot_t *slot)
 {
@@ -862,30 +891,31 @@ void free_slot_by_inv (pjsip_inv_session *inv)
     pj_timer_heap_cancel_if_active (timer_heap, &slots[i].entry[1], slots[i].entry_id[1]);
     
     pjsip_tx_data *request_data=NULL;
-    if (inv)   
-    if (inv->state/*<--error here*/ == PJSIP_INV_STATE_CONFIRMED)
+    if (inv)
     {
-        pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &request_data);
-        pjsip_dlg_send_request (slots[i].dlg, request_data, -1, NULL);
-    } else
+        if (inv->state == PJSIP_INV_STATE_CONFIRMED)
+        {
+            pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &request_data);
+            pjsip_dlg_send_request (slots[i].dlg, request_data, -1, NULL);
+        } else
 
-    if (inv->state == PJSIP_INV_STATE_EARLY)
-    {
-        pjsip_inv_answer
+        if (inv->state == PJSIP_INV_STATE_EARLY)
+        {
+            pjsip_inv_answer
                 (
                    slots[i].inv_ss, 486, NULL, NULL, &slots[i].tdata 
                 );
-        pjsip_inv_send_msg(slots[i].inv_ss, slots[i].tdata);
-        
-        
-    }
+            pjsip_inv_send_msg(slots[i].inv_ss, slots[i].tdata);
+        }
+        pjsip_inv_end_session (inv, 200, NULL, &slots[i].tdata);
+    }  
+    
 
     
     
     //pj_sem_post (slots[i].sem);
     
-    if (slots[i].inv_ss)
-        pjsip_inv_end_session (slots[i].inv_ss, 200, NULL, &slots[i].tdata);
+        
 
     nullize_slot (&slots[i]);
     
