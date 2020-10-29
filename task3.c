@@ -132,6 +132,8 @@ typedef struct slot_t
     pj_mutex_t          *mutex;
     pj_bool_t           busy;
 
+    char                telephone[64];
+    char                *uri;
     
    
 } slot_t;
@@ -213,15 +215,33 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     pjsip_inv_session *inv;
     pjsip_tx_data *tdata=NULL;
     
+    //printf ("\n\n%s\n\n", rdata->pkt_info.src_name);
+    //printf ("%s\n", rdata->msg_info.to->uri);
+
     unsigned options = 0;
     pj_status_t status;
     
     // get free slot
 
     
+    char uri[64];
+    memset (uri, '\0', 64);
+    pjsip_uri_print (PJSIP_URI_IN_FROMTO_HDR, rdata->msg_info.to->uri, uri, 64 );
+
+    int at_i=-1;
+    for (int i=0; i<strlen(uri); i++)
+        if (uri[i] == '@')
+            at_i = i;
+    int start_i=0;
     
+    if (at_i == -1); // catch errors
     
-     // Respond (statelessly) any non-INVITE requests with 500 
+    for ( start_i=at_i-1; start_i>=0 && (isdigit(uri[start_i]) || isalpha(uri[start_i])); start_i-- );
+    start_i++;
+    char telephone[64];
+    strncpy (telephone, uri+start_i, at_i-start_i);
+    
+    // Respond (statelessly) any non-INVITE requests with 500 
      
     if (rdata->msg_info.msg->line.req.method.id != PJSIP_INVITE_METHOD) {
 
@@ -239,6 +259,10 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 
     
      // Reject INVITE if we already have an INVITE session in progress.
+    
+    
+    // Checking phone number to make various policy
+
     
     slot_t *tmp = get_slot ();
     
@@ -342,6 +366,11 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
      //Invite session has been created, decrement & release dialog lock.
     
     
+    printf ("\n\nstart=%d end=%d\n\n", start_i, at_i);
+    sleep(2);
+
+    
+    strncpy (tmp->telephone, telephone, 64);
     // Register slot
     tmp->inv_ss = inv;
     tmp->dlg = dlg;
@@ -538,6 +567,7 @@ int main(int argc, char *argv[])
     {
         nullize_slot (&slots[i2]);
         pj_mutex_create (pool, "global slots_count mutex", PJ_MUTEX_SIMPLE, &slots[i2].mutex);
+        memset (slots[i].telephone, '\0', 64);
         //slots_st[i2] = PJ_FALSE;
         /*status = pj_mutex_create (pool, s, PJ_MUTEX_SIMPLE, &slots[i2].mutex) //pj_sem_create (pool, s, 1, 2, &slots[i2].sem);
         if (status != PJ_SUCCESS)
@@ -819,9 +849,22 @@ int thread_func (void *p)
             case 's':
                 printf ("\n\n\tCOUNT_SLOTS = %u\n\n", slots_count);
                 break;
+
             case 'p':
                 pause = !pause;
                 break;
+
+            case 't':
+                for (int i=0; i<20; i++)
+                {
+                    if (slots[i].busy)
+                    {
+                        printf ("\n\n%s (%s)\n\n", slots[i].telephone, slots[i].uri);
+                    } 
+                        
+                }
+                break;
+                
         }
             
     }
@@ -855,6 +898,7 @@ slot_t * get_slot ()
 void nullize_slot (slot_t *slot)
 {
     //slot->sem = NULL;
+    memset (slot->telephone, '\0', 64);
     slot->state = WAITING;
     slot->media_transport = NULL;
     slot->media_stream = NULL;
