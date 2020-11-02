@@ -73,7 +73,7 @@ static pjsip_module mod_simpleua =
 
 
 /////////////Custom vars/////////////////////////////////////
-pjsip_endpoint  *sip_endpt;
+pjsip_endpoint  *sip_endpt; //pjsip_endpt_get_timer_heap
 
 pj_caching_pool cp; // Global pool factory.	
 pj_pool_t       *pool = NULL; // pool for tonegen, .wav player etc.
@@ -87,6 +87,7 @@ pjmedia_port    *quick_beep_tonegen_port=NULL;
 pjmedia_port    *warning_tonegen_port=NULL;
 
 pjmedia_port    *player_port=NULL;
+pjmedia_master_port *conf_mp;
 
 pjmedia_endpt     *media_endpt;
 
@@ -95,7 +96,8 @@ pjmedia_endpt     *media_endpt;
 const pj_time_val     delay1 = {10, 0};
 const pj_time_val     delay2 = {10, 0};
 uint32_t              timer_count=0;
-pjmedia_conf          *conf_b=NULL;
+
+pjmedia_conf          *conf=NULL;
 
 uint8_t slots_count=20;
 
@@ -133,7 +135,7 @@ typedef struct slot_t
 
     //pj_timer_heap_t     *timer_heap; // heap for 2 timers
     pj_timer_entry      entry[2]; // 0 for accept_call(), 1 for auto_exit()
-    pj_uint16_t          entry_id[2];
+    pj_uint16_t         entry_id[2];
 
     pj_mutex_t          *mutex;
     pj_bool_t           busy;
@@ -171,7 +173,8 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 				   pjsip_event *e)
 {
     PJ_UNUSED_ARG(e);
-    slot_t *slot = &slots[get_index_by_inv (inv)];
+    
+    slot_t *slot = &slots[get_index_by_inv (inv)]; // through inv->mod_data
     if (!slot->busy)
         return;
     if (inv->state == PJSIP_INV_STATE_DISCONNECTED) {
@@ -358,38 +361,32 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
      //Invite session has been created, decrement & release dialog lock.
     
     
-    //printf ("\n\nstart=%d end=%d\n\n", start_i, at_i);
-    //sleep(2);
-
-    char uri[64];
-    memset (uri, '\0', 64);
-    pjsip_uri_print (PJSIP_URI_IN_FROMTO_HDR, rdata->msg_info.to->uri, uri, 64 );
-
-    int at_i=-1;
-    for (int i=0; i<strlen(uri); i++)
-        if (uri[i] == '@')
-            at_i = i;
-    int start_i=0;
     
-    if (at_i == -1); // catch errors
+    pjsip_sip_uri *sip_uri = (pjsip_sip_uri*)pjsip_uri_get_uri(rdata->msg_info.to->uri);
     
-    for ( start_i=at_i-1; start_i>=0 && (isdigit(uri[start_i]) || isalpha(uri[start_i])); start_i-- );
-    start_i++;
     char telephone[64];
-    memset (telephone, '\0', sizeof(telephone));
-    strncpy (telephone, uri+start_i, at_i-start_i);
+
+    strncpy (telephone, sip_uri->user.ptr, sip_uri->user.slen);
     
-    printf ("\n\n%s %s [%d;%d]\n\n", telephone, uri, start_i, at_i);
-    //sleep(3);  
+    for (int i=0; i<sizeof(telephone); i++)
+        if ( !isdigit (telephone[i]) && !isalpha (telephone[i]) )
+        {
+            memset (telephone+i, '\0', sizeof(telephone)-i);
+            break;
+        }
+
     // Register slot
+    
     if ( !strcmp (telephone, "666") )
         tmp->input_port = warning_tonegen_port;
     
     else if ( !strcmp (telephone, "1234") )
-            tmp->input_port = quick_beep_tonegen_port;
+        tmp->input_port = quick_beep_tonegen_port;
 
     else if ( !strcmp (telephone, "9000") )
-            tmp->input_port = station_answer_tonegen_port;
+        tmp->input_port = station_answer_tonegen_port;
+    else if ( !strcmp (telephone, "05") )
+        tmp->input_port = player_port;
     else
     {
         tmp->input_port = NULL;
@@ -405,7 +402,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     tmp->media_transport = media_transport;
     //tmp->uri = uri;
     strncpy (tmp->telephone, telephone, sizeof(telephone));
-    strncpy (tmp->uri, uri, sizeof(uri));
+    //strncpy (tmp->uri, uri, sizeof(uri));
 
     pj_timer_entry_init (&tmp->entry[0], tmp->entry_id[0] =  timer_count++, (void*)tmp, &accept_call);
     pj_timer_entry_init (&tmp->entry[1], tmp->entry_id[0] =  timer_count++, (void*)tmp, &auto_exit);
@@ -605,7 +602,13 @@ int main(int argc, char *argv[])
     
     // Must create a pool factory before we can allocate any memory. 
     
-    //pjmedia_conf_create (pool, 20, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE || PJMEDIA_CONF_NO_MIC );
+    //pjmedia_master_port_create (pool, NULL, NULL, 0, &conf_mp);
+    
+
+    pjmedia_conf_create (pool, 20, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE, &conf);
+
+
+
 
     
     // Create global endpoint: 
@@ -619,6 +622,9 @@ int main(int argc, char *argv[])
 
 	// For this implementation, we'll use hostname for simplicity 
 	hostname = pj_gethostname();
+
+    printf ("\n\nHost Name: %s\n\n", hostname->ptr);
+
 	endpt_name = hostname->ptr;
 
 	// Create the endpoint: 
@@ -712,8 +718,7 @@ int main(int argc, char *argv[])
     status = pjsip_endpt_register_module( sip_endpt, &msg_logger);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
     
-    //timer_heap = sip_endpt->timer_heap; dereferencing pointer to incomplete type
- 
+    timer_heap = pjsip_endpt_get_timer_heap (sip_endpt); 
     /* 
      * Initialize media endpoint.
      * This will implicitly initialize PJMEDIA too.
@@ -738,7 +743,7 @@ int main(int argc, char *argv[])
      */
     
 
-	pj_timer_heap_create (pool, 2, &timer_heap);
+	//pj_timer_heap_create (pool, 2, &timer_heap);
     
     pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &ringback_tonegen_port);
     pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &station_answer_tonegen_port);
@@ -808,7 +813,6 @@ int main(int argc, char *argv[])
     while (g_complete)
     {
         pjsip_endpt_handle_events(sip_endpt, &timeout);
-        pj_timer_heap_poll (timer_heap, NULL);
         if (pause)
         {
             printf ("\n\nPRESS 'P' TO CONTINUE...\n\n");
