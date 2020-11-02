@@ -80,7 +80,12 @@ pj_pool_t       *pool = NULL; // pool for tonegen, .wav player etc.
 
 pj_bool_t g_complete = PJ_TRUE;
 
-pjmedia_port    *tonegen_port=NULL;
+pjmedia_port    *ringback_tonegen_port=NULL;
+
+pjmedia_port    *station_answer_tonegen_port=NULL;
+pjmedia_port    *quick_beep_tonegen_port=NULL;
+pjmedia_port    *warning_tonegen_port=NULL;
+
 pjmedia_port    *player_port=NULL;
 
 pjmedia_endpt     *media_endpt;
@@ -113,6 +118,7 @@ typedef struct slot_t
     pjmedia_transport   *media_transport; // on_rx_request
     pjmedia_stream      *media_stream; // call_on_media_update
     pjmedia_port        *stream_port; // call_on_media_update
+    pjmedia_port        *input_port;
     pjmedia_master_port *mp; // call_on_media_update
     //pjmedia_endpt       *media_endpt;
     pjmedia_sock_info   *media_sock_info;
@@ -133,7 +139,8 @@ typedef struct slot_t
     pj_bool_t           busy;
 
     char                telephone[64];
-    char                *uri;
+    char                uri[64];
+    
     
    
 } slot_t;
@@ -224,22 +231,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     // get free slot
 
     
-    char uri[64];
-    memset (uri, '\0', 64);
-    pjsip_uri_print (PJSIP_URI_IN_FROMTO_HDR, rdata->msg_info.to->uri, uri, 64 );
-
-    int at_i=-1;
-    for (int i=0; i<strlen(uri); i++)
-        if (uri[i] == '@')
-            at_i = i;
-    int start_i=0;
     
-    if (at_i == -1); // catch errors
-    
-    for ( start_i=at_i-1; start_i>=0 && (isdigit(uri[start_i]) || isalpha(uri[start_i])); start_i-- );
-    start_i++;
-    char telephone[64];
-    strncpy (telephone, uri+start_i, at_i-start_i);
     
     // Respond (statelessly) any non-INVITE requests with 500 
      
@@ -366,12 +358,43 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
      //Invite session has been created, decrement & release dialog lock.
     
     
-    printf ("\n\nstart=%d end=%d\n\n", start_i, at_i);
-    sleep(2);
+    //printf ("\n\nstart=%d end=%d\n\n", start_i, at_i);
+    //sleep(2);
 
+    char uri[64];
+    memset (uri, '\0', 64);
+    pjsip_uri_print (PJSIP_URI_IN_FROMTO_HDR, rdata->msg_info.to->uri, uri, 64 );
+
+    int at_i=-1;
+    for (int i=0; i<strlen(uri); i++)
+        if (uri[i] == '@')
+            at_i = i;
+    int start_i=0;
     
-    strncpy (tmp->telephone, telephone, 64);
+    if (at_i == -1); // catch errors
+    
+    for ( start_i=at_i-1; start_i>=0 && (isdigit(uri[start_i]) || isalpha(uri[start_i])); start_i-- );
+    start_i++;
+    char telephone[64];
+    memset (telephone, '\0', sizeof(telephone));
+    strncpy (telephone, uri+start_i, at_i-start_i);
+    
+    printf ("\n\n%s %s [%d;%d]\n\n", telephone, uri, start_i, at_i);
+    //sleep(3);  
     // Register slot
+    if ( !strcmp (telephone, "666") )
+        tmp->input_port = warning_tonegen_port;
+    
+    else if ( !strcmp (telephone, "1234") )
+            tmp->input_port = quick_beep_tonegen_port;
+
+    else if ( !strcmp (telephone, "9000") )
+            tmp->input_port = station_answer_tonegen_port;
+    else
+    {
+        tmp->input_port = NULL;
+    }
+    
     tmp->inv_ss = inv;
     tmp->dlg = dlg;
     tmp->rdata = rdata;
@@ -380,8 +403,9 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     tmp->media_sock_info = &media_sock_info;
     //tmp->media_endpt = media_endpt;
     tmp->media_transport = media_transport;
-    
-    
+    //tmp->uri = uri;
+    strncpy (tmp->telephone, telephone, sizeof(telephone));
+    strncpy (tmp->uri, uri, sizeof(uri));
 
     pj_timer_entry_init (&tmp->entry[0], tmp->entry_id[0] =  timer_count++, (void*)tmp, &accept_call);
     pj_timer_entry_init (&tmp->entry[1], tmp->entry_id[0] =  timer_count++, (void*)tmp, &auto_exit);
@@ -518,7 +542,7 @@ static void call_on_media_update( pjsip_inv_session *inv,
     if (PJ_SUCCESS != status) 
         pj_perror (5,THIS_FILE, status, "on_media_upd");
 
-    status = pjmedia_master_port_create (tmp->ss_pool, tonegen_port, tmp->stream_port, 
+    status = pjmedia_master_port_create (tmp->ss_pool, ringback_tonegen_port, tmp->stream_port, 
                                 0, &tmp->mp); 
     if (PJ_SUCCESS != status) 
         pj_perror (5,THIS_FILE, status, "on_media_upd"); 
@@ -567,7 +591,7 @@ int main(int argc, char *argv[])
     {
         nullize_slot (&slots[i2]);
         pj_mutex_create (pool, "global slots_count mutex", PJ_MUTEX_SIMPLE, &slots[i2].mutex);
-        memset (slots[i].telephone, '\0', 64);
+        //pj_memset (slots[i].telephone, '\0', sizeof(slots[i].telephone));
         //slots_st[i2] = PJ_FALSE;
         /*status = pj_mutex_create (pool, s, PJ_MUTEX_SIMPLE, &slots[i2].mutex) //pj_sem_create (pool, s, 1, 2, &slots[i2].sem);
         if (status != PJ_SUCCESS)
@@ -645,7 +669,7 @@ int main(int argc, char *argv[])
     status = pjsip_ua_init_module( sip_endpt, NULL );
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
-
+   
     /* 
      * Init invite session module.
      * The invite session module initialization takes additional argument,
@@ -716,15 +740,39 @@ int main(int argc, char *argv[])
 
 	pj_timer_heap_create (pool, 2, &timer_heap);
     
-    pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &tonegen_port);
+    pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &ringback_tonegen_port);
+    pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &station_answer_tonegen_port);
+    pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &quick_beep_tonegen_port);
+    pjmedia_tonegen_create(pool, 8000, 1, 160, 16, 0, &warning_tonegen_port);
 
-    pjmedia_tone_desc tone[1];
-    tone[0].freq1 = 400;
-    tone[0].freq2 = 0;
-    tone[0].on_msec = 1000;
-    tone[0].off_msec = 4000; // set to 0 if need station ready sound
 
-    pjmedia_tonegen_play(tonegen_port, 1, tone, PJMEDIA_TONEGEN_LOOP);
+    pjmedia_tone_desc ringback_tone, warning_tone, quick_beep_tone, station_answer_tone;
+
+    ringback_tone.freq1 = 425;
+    ringback_tone.freq2 = 0;
+    ringback_tone.on_msec = 1000;
+    ringback_tone.off_msec = 4000; // set to 0 if need station ready sound
+
+    station_answer_tone.freq1 = 425;
+    station_answer_tone.freq2 = 0;
+    station_answer_tone.on_msec = 1;
+    station_answer_tone.off_msec = 0;
+
+    warning_tone.freq1 = 200;
+    warning_tone.freq2 = 0;
+    warning_tone.on_msec = 200;
+    warning_tone.off_msec = 200;
+
+    quick_beep_tone.freq1 = 500;
+    quick_beep_tone.freq2 = 0;
+    quick_beep_tone.on_msec = 70;
+    quick_beep_tone.off_msec = 70;
+
+
+    pjmedia_tonegen_play(ringback_tonegen_port, 1, &ringback_tone, PJMEDIA_TONEGEN_LOOP);
+    pjmedia_tonegen_play(quick_beep_tonegen_port, 1, &quick_beep_tone, PJMEDIA_TONEGEN_LOOP);
+    pjmedia_tonegen_play(warning_tonegen_port, 1, &warning_tone, PJMEDIA_TONEGEN_LOOP);
+    pjmedia_tonegen_play(station_answer_tonegen_port, 1, &station_answer_tone, PJMEDIA_TONEGEN_LOOP);
 
     status = pjmedia_wav_player_port_create 
                  (  
@@ -898,7 +946,7 @@ slot_t * get_slot ()
 void nullize_slot (slot_t *slot)
 {
     //slot->sem = NULL;
-    memset (slot->telephone, '\0', 64);
+    //memset (&slot->telephone, '\0', sizeof(&slot->telephone));
     slot->state = WAITING;
     slot->media_transport = NULL;
     slot->media_stream = NULL;
@@ -1018,9 +1066,15 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
     
     tmp->state = SPEAKING;
     
-    //pjmedia_master_port_stop(tmp->mp);
-    //pjmedia_master_port_set_uport (tmp->mp, player_port); 
-    //pjmedia_master_port_start (tmp->mp); 
+    if (tmp->input_port == NULL)
+    {
+        free_slot_by_inv (tmp->inv_ss);
+        return;
+    }
+
+    pjmedia_master_port_stop(tmp->mp);
+    pjmedia_master_port_set_uport (tmp->mp, tmp->input_port); 
+    pjmedia_master_port_start (tmp->mp); 
     status = pjsip_inv_send_msg(tmp->inv_ss, tmp->tdata);
    
     pj_timer_heap_schedule(timer_heap, &tmp->entry[1], &delay2);
