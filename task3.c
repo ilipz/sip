@@ -369,7 +369,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     strncpy (telephone, sip_uri->user.ptr, sip_uri->user.slen);
     strncpy (tmp->uri, sip_uri->user.ptr, sip_uri->user.slen);
     for (int i=0; i<sizeof(telephone); i++)
-        if ( !isdigit (telephone[i]) && !isalpha (telephone[i]) )
+        if ( !isdigit (telephone[i]) )
         {
             memset (telephone+i, '\0', sizeof(telephone)-i);
             break;
