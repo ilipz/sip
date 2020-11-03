@@ -368,11 +368,12 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     
     pjsip_sip_uri *sip_uri = (pjsip_sip_uri*)pjsip_uri_get_uri(rdata->msg_info.to->uri);
     
-    char telephone[64];
+    char telephone[64] =  {0};
 
     strncpy (telephone, sip_uri->user.ptr, sip_uri->user.slen);
+    PJ_LOG (5, ("AAAAAAAAAAAAAAAAAAAAAAAAAA", "TELEPHONE: %s\n", telephone));
     strncpy (tmp->uri, sip_uri->user.ptr, sip_uri->user.slen);
-    for (int i=0; i<sizeof(telephone); i++)
+    for (int i=0; i<sizeof(telephone); i++)                                     // ERASE
         if ( !isdigit (telephone[i]) )
         {
             memset (telephone+i, '\0', sizeof(telephone)-i);
@@ -751,7 +752,7 @@ int main(int argc, char *argv[])
     // Create event manager 
     status = pjmedia_event_mgr_create(pool, 0, NULL);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
-
+    //slots[i].inv_ss->mod_data[mod_idx] = 
     
     /* 
      * Create media transport used to send/receive RTP/RTCP socket.
@@ -812,12 +813,25 @@ int main(int argc, char *argv[])
         pj_perror (5, "wav pjmedia create", status, "egog");
         exit (1);
     }
-
-    status = pjmedia_conf_create (pool, 26, 8000, 1, 160, 16, 0, &conf);
+    
+    status = pjmedia_conf_create (pool, 26, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE || PJMEDIA_CONF_NO_MIC, &conf);
     if (status != PJ_SUCCESS)
         exit (5);
     pj_str_t mp_name = pj_str ("conf mp name");
     pjmedia_conf_set_port0_name (conf, &mp_name);
+
+    pjmedia_port *conf_p0 = pjmedia_conf_get_master_port(conf); 
+    pjmedia_port *null_port;
+    status = pjmedia_null_port_create (pool, 8000, 1, 160, 16, &null_port);
+    if (status != PJ_SUCCESS)
+    {
+        pj_perror (5 , THIS_FILE, status, "NULL port");
+        exit (1);
+    }
+    pjmedia_master_port_create (pool, null_port, conf_p0, 0, &conf_mp);
+
+    pjmedia_master_port_start (conf_mp);
+
 
     pj_str_t conf_tp_names[5];
     conf_tp_names[0] = pj_str("warning tp");

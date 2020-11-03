@@ -4,6 +4,7 @@ CC = gcc  -c -g
 IP = 127.0.0.1
 CALLS_PER_SEC = 20
 CALL_LENGTH = 13
+TEL = 666
 
 all: task1 task2 task3 task4 task1-arm task2-arm task3-arm task4-arm
 
@@ -43,7 +44,7 @@ task4-arm:
 	gcc task4-arm.o -o task4-arm $(PJ_FLAG)
 
 task3-test:
-	sipp $(IP) -s 666  -d $(CALL_LENGTH) -l 20 -aa -mi 10.25.72.103 -rtp_echo -nd -r $(CALLS) -rp $(PER_TIME) 
+	sipp $(IP) -s $(TEL)  -d $(CALL_LENGTH) -l 20 -aa -mi 10.25.72.103 -rtp_echo -nd -r $(CALLS) -rp $(PER_TIME) 
 .PHONY: clean
 	
 clean:
