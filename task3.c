@@ -367,7 +367,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     char telephone[64];
 
     strncpy (telephone, sip_uri->user.ptr, sip_uri->user.slen);
-    
+    strncpy (tmp->uri, sip_uri->user.ptr, sip_uri->user.slen);
     for (int i=0; i<sizeof(telephone); i++)
         if ( !isdigit (telephone[i]) && !isalpha (telephone[i]) )
         {
@@ -1009,7 +1009,7 @@ void free_slot_by_inv (pjsip_inv_session *inv)
     if (slots[i].media_stream)
         pjmedia_stream_destroy (slots[i].media_stream);
     if (slots[i].media_transport)
-        pjmedia_transport_close (slots[i].media_transport); //карочи тут после отправки 486-го вылетает ошибка при попытке закрыть транспорт медиа (т.к. он, по ходу, равен нулю)
+        pjmedia_transport_close (slots[i].media_transport); 
     pj_timer_heap_cancel_if_active (timer_heap, &slots[i].entry[0], slots[i].entry_id[0]);
     pj_timer_heap_cancel_if_active (timer_heap, &slots[i].entry[1], slots[i].entry_id[1]);
     
