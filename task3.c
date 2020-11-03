@@ -430,8 +430,8 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
 
     
-    tmp->state = RINGING;
-    
+    //tmp->state = RINGING;
+    zdes nado vstavit chto-to vrode inv->mod_data[module_index] = (void*) &module_index;
 
     
     status = pjsip_inv_answer
