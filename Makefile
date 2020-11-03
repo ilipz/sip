@@ -43,7 +43,7 @@ task4-arm:
 	gcc task4-arm.o -o task4-arm $(PJ_FLAG)
 
 task3-test:
-	sipp $(IP):5060 -s 666 -i $(IP) -d $(CALL_LENGTH) -l 20 -aa -mi $(IP) -rtp_echo -nd -r $(CALLS_PER_SEC)
+	sipp $(IP) -s 666  -d $(CALL_LENGTH) -l 20 -aa -mi 10.25.72.103 -rtp_echo -nd -r $(CALLS) -rp $(PER_TIME) 
 .PHONY: clean
 	
 clean:

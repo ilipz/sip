@@ -5,6 +5,7 @@ task3
 task4
 task2.wav
 task3.wav
+pj/*
 # Prerequisites
 *.d
 test.c

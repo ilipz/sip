@@ -86,6 +86,9 @@ pjmedia_port    *station_answer_tonegen_port=NULL;
 pjmedia_port    *quick_beep_tonegen_port=NULL;
 pjmedia_port    *warning_tonegen_port=NULL;
 
+unsigned ringback_conf_id, station_answer_conf_id, 
+quick_beep_conf_id, warning_conf_id, player_conf_id;
+
 pjmedia_port    *player_port=NULL;
 pjmedia_master_port *conf_mp;
 
@@ -120,7 +123,7 @@ typedef struct slot_t
     pjmedia_transport   *media_transport; // on_rx_request
     pjmedia_stream      *media_stream; // call_on_media_update
     pjmedia_port        *stream_port; // call_on_media_update
-    pjmedia_port        *input_port;
+    
     pjmedia_master_port *mp; // call_on_media_update
     //pjmedia_endpt       *media_endpt;
     pjmedia_sock_info   *media_sock_info;
@@ -142,8 +145,9 @@ typedef struct slot_t
 
     char                telephone[64];
     char                uri[64];
-    
-    
+
+    unsigned            conf_id;    
+    unsigned            input_port;
    
 } slot_t;
 
@@ -173,7 +177,7 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 				   pjsip_event *e)
 {
     PJ_UNUSED_ARG(e);
-    
+
     slot_t *slot = &slots[get_index_by_inv (inv)]; // through inv->mod_data
     if (!slot->busy)
         return;
@@ -378,15 +382,15 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     // Register slot
     
     if ( !strcmp (telephone, "666") )
-        tmp->input_port = warning_tonegen_port;
+        tmp->input_port = warning_conf_id;
     
     else if ( !strcmp (telephone, "1234") )
-        tmp->input_port = quick_beep_tonegen_port;
+        tmp->input_port = quick_beep_conf_id;
 
     else if ( !strcmp (telephone, "9000") )
-        tmp->input_port = station_answer_tonegen_port;
+        tmp->input_port = station_answer_conf_id;
     else if ( !strcmp (telephone, "05") )
-        tmp->input_port = player_port;
+        tmp->input_port = player_conf_id;
     else
     {
         tmp->input_port = NULL;
@@ -539,14 +543,27 @@ static void call_on_media_update( pjsip_inv_session *inv,
     if (PJ_SUCCESS != status) 
         pj_perror (5,THIS_FILE, status, "on_media_upd");
 
-    status = pjmedia_master_port_create (tmp->ss_pool, ringback_tonegen_port, tmp->stream_port, 
+    pj_str_t *conf_port_name = pj_pool_alloc (tmp->ss_pool, 8);
+    if (conf_port_name == NULL)
+        exit (8);
+    char tmps[8];
+    sprintf (tmps, "%d", index);
+    *conf_port_name = pj_str (tmps);
+
+    pjmedia_conf_add_port (conf, tmp->ss_pool, tmp->stream_port, conf_port_name, &tmp->conf_id);
+
+    /*status = pjmedia_master_port_create (tmp->ss_pool, ringback_tonegen_port, tmp->stream_port, 
                                 0, &tmp->mp); 
     if (PJ_SUCCESS != status) 
         pj_perror (5,THIS_FILE, status, "on_media_upd"); 
 
 	status = pjmedia_master_port_start (tmp->mp);
     if (PJ_SUCCESS != status) 
-        pj_perror (5,THIS_FILE, status, "on_media_upd");
+        pj_perror (5,THIS_FILE, status, "on_media_upd"); */
+    
+    pjmedia_conf_connect_port (conf, ringback_conf_id, tmp->conf_id, 0);
+
+    printf ("\n\n%u\n\n",pjmedia_conf_get_connect_count(conf));
     
     pj_timer_heap_schedule(timer_heap, &tmp->entry[0], &delay1); // start timer to accept
 
@@ -605,7 +622,7 @@ int main(int argc, char *argv[])
     //pjmedia_master_port_create (pool, NULL, NULL, 0, &conf_mp);
     
 
-    pjmedia_conf_create (pool, 20, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE, &conf);
+    
 
 
 
@@ -723,7 +740,7 @@ int main(int argc, char *argv[])
      * Initialize media endpoint.
      * This will implicitly initialize PJMEDIA too.
      */
-
+ 
     status = pjmedia_endpt_create(&cp.factory, NULL, 1, &media_endpt);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
 
@@ -779,6 +796,8 @@ int main(int argc, char *argv[])
     pjmedia_tonegen_play(warning_tonegen_port, 1, &warning_tone, PJMEDIA_TONEGEN_LOOP);
     pjmedia_tonegen_play(station_answer_tonegen_port, 1, &station_answer_tone, PJMEDIA_TONEGEN_LOOP);
 
+   
+
     status = pjmedia_wav_player_port_create 
                  (  
                           pool,	// memory pool	    
@@ -794,7 +813,44 @@ int main(int argc, char *argv[])
         exit (1);
     }
 
-   
+    status = pjmedia_conf_create (pool, 26, 8000, 1, 160, 16, 0, &conf);
+    if (status != PJ_SUCCESS)
+        exit (5);
+    pj_str_t mp_name = pj_str ("conf mp name");
+    pjmedia_conf_set_port0_name (conf, &mp_name);
+
+    pj_str_t conf_tp_names[5];
+    conf_tp_names[0] = pj_str("warning tp");
+    conf_tp_names[1] = pj_str("sa tp");
+    conf_tp_names[2]  = pj_str("rb tp");
+    conf_tp_names[3] = pj_str("qb tp");
+    conf_tp_names[4] = pj_str ("player p");
+    
+    status = pjmedia_conf_add_port (conf, pool, warning_tonegen_port, &conf_tp_names[0], &warning_conf_id);
+    if (status != PJ_SUCCESS)
+        pj_perror (5, "main()", status, "Error adding TP to CB");
+    status = pjmedia_conf_add_port (conf, pool, station_answer_tonegen_port, &conf_tp_names[1] , &station_answer_conf_id);
+    if (status != PJ_SUCCESS)
+        pj_perror (5, "main()", status, "Error adding TP to CB");
+    
+    status = pjmedia_conf_add_port (conf, pool, ringback_tonegen_port, &conf_tp_names[2], &ringback_conf_id);
+    if (status != PJ_SUCCESS)
+        pj_perror (5, "main()", status, "Error adding TP to CB");
+    
+    status = pjmedia_conf_add_port (conf, pool, quick_beep_tonegen_port, &conf_tp_names[3], &quick_beep_conf_id);
+    if (status != PJ_SUCCESS)
+        pj_perror (5, "main()", status, "Error adding TP to CB");
+    
+    status = pjmedia_conf_add_port (conf, pool, player_port, &conf_tp_names[4], &player_conf_id);
+    if (status != PJ_SUCCESS)
+        pj_perror (5, "main()", status, "Error adding TP to CB");
+
+     printf ("\n\n%u %u %u %u\n\n", warning_conf_id, station_answer_conf_id, ringback_conf_id, quick_beep_conf_id, player_conf_id);
+
+    //conf_mp = pjmedia_conf_get_master_port (conf);
+
+    //pjmedia_master_port_create (pool, NULL, NULL, NULL, &conf_mp);
+    //pjmedia_master_port_start (conf_mp);
 
     PJ_LOG(5,(THIS_FILE, "Ready to accept incoming calls..."));
 
@@ -834,6 +890,7 @@ int main(int argc, char *argv[])
     for (int i=0; i<20; i++)
         free_slot_by_inv (slots[i].inv_ss);
     
+    pjmedia_conf_destroy (conf);
     /*if (g_inv);
         //pjsip_inv_end_session (g_inv, 200, NULL, &tdata);
 
@@ -885,6 +942,7 @@ int main(int argc, char *argv[])
 
 int thread_func (void *p)
 {
+    int id;
     while (1)
     {
        
@@ -915,6 +973,13 @@ int thread_func (void *p)
                     } 
                         
                 }
+                break;
+            
+            case 'b':
+                
+                printf ("\n\nEnter slot ID: ");
+                scanf ("%d", &id);
+                printf ("\n\nSTREAM CONF ID %u\n\n", slots[id].conf_id);
                 break;
                 
         }
@@ -972,6 +1037,8 @@ void nullize_slot (slot_t *slot)
     }
     
     slot->busy = PJ_FALSE;
+    slot->conf_id = 21;
+    slot->input_port = 21;
 }
 
 int get_index_by_inv (pjsip_inv_session *inv)
@@ -1003,8 +1070,13 @@ void free_slot_by_inv (pjsip_inv_session *inv)
 
     /*if (slots[i].timer_heap)
         pj_timer_heap_destroy (slots[i].timer_heap); */
-    if (slots[i].mp)
-        pjmedia_master_port_destroy (slots[i].mp, PJ_FALSE);
+    /*if (slots[i].mp)
+        pjmedia_master_port_destroy (slots[i].mp, PJ_FALSE); */
+    
+    if (slots[i].conf_id < 21 && slots[i].input_port < 21)
+        pjmedia_conf_disconnect_port (conf, slots[i].input_port, slots[i].conf_id);
+    
+    pjmedia_conf_remove_port (conf, slots[i].conf_id);
     
     if (slots[i].media_stream)
         pjmedia_stream_destroy (slots[i].media_stream);
@@ -1076,9 +1148,13 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
         return;
     }
 
-    pjmedia_master_port_stop(tmp->mp);
+    /*pjmedia_master_port_stop(tmp->mp);
     pjmedia_master_port_set_uport (tmp->mp, tmp->input_port); 
-    pjmedia_master_port_start (tmp->mp); 
+    pjmedia_master_port_start (tmp->mp); */
+
+    pjmedia_conf_disconnect_port (conf, ringback_conf_id, tmp->conf_id);
+    pjmedia_conf_connect_port (conf, tmp->input_port, tmp->conf_id, 0);
+
     status = pjsip_inv_send_msg(tmp->inv_ss, tmp->tdata);
    
     pj_timer_heap_schedule(timer_heap, &tmp->entry[1], &delay2);
