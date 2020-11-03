@@ -816,7 +816,11 @@ int main(int argc, char *argv[])
     
     status = pjmedia_conf_create (pool, 26, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE || PJMEDIA_CONF_NO_MIC, &conf);
     if (status != PJ_SUCCESS)
+    {
+        pj_perror (5, THIS_FILE, status, "CONF CREATE");
         exit (5);
+    }
+        
     pj_str_t mp_name = pj_str ("conf mp name");
     pjmedia_conf_set_port0_name (conf, &mp_name);
 
