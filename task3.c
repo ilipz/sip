@@ -814,7 +814,7 @@ int main(int argc, char *argv[])
         exit (1);
     }
     
-    status = pjmedia_conf_create (pool, 26, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE || PJMEDIA_CONF_NO_MIC, &conf);
+    status = pjmedia_conf_create (pool, 26, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE, &conf);
     if (status != PJ_SUCCESS)
     {
         pj_perror (5, THIS_FILE, status, "CONF CREATE");
