@@ -148,6 +148,7 @@ typedef struct slot_t
 
     unsigned            conf_id;    
     unsigned            input_port;
+    pj_uint8_t          index;
    
 } slot_t;
 
@@ -161,7 +162,7 @@ void auto_exit (pj_timer_heap_t *ht, pj_timer_entry *e);
 void poolfail_cb (pj_pool_t *pool, pj_size_t size);
 void nullize_slot (slot_t *slot);
 void free_slot_by_inv (pjsip_inv_session *inv);
-int get_index_by_inv (pjsip_inv_session *inv); 
+int get_slot_by_inv (pjsip_inv_session *inv); 
 void free_slot (slot_t *slot);
 slot_t * get_slot ();
 int thread_func (void *p);
@@ -178,7 +179,7 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 {
     PJ_UNUSED_ARG(e);
 
-    slot_t *slot = &slots[get_index_by_inv (inv)]; // through inv->mod_data
+    slot_t *slot = &slots[get_slot_by_inv (inv)]; // through inv->mod_data
     if (!slot->busy)
         return;
     if (inv->state == PJSIP_INV_STATE_DISCONNECTED) {
@@ -431,8 +432,8 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 
     
     //tmp->state = RINGING;
-    zdes nado vstavit chto-to vrode inv->mod_data[module_index] = (void*) &module_index;
-
+    //zdes nado vstavit chto-to vrode inv->mod_data[module_index] = (void*) &module_index;
+    tmp->inv_ss->mod_data[mod_simpleua.id] = (void*)&tmp->index;
     
     status = pjsip_inv_answer
                 (
@@ -490,7 +491,7 @@ static void call_on_media_update( pjsip_inv_session *inv,
     exit (2);
 	return;
     }
-    int index = get_index_by_inv (inv);
+    int index = get_slot_by_inv (inv);
     if (index == -1)
         exit(1);
     
@@ -606,6 +607,7 @@ int main(int argc, char *argv[])
     {
         nullize_slot (&slots[i2]);
         pj_mutex_create (pool, "global slots_count mutex", PJ_MUTEX_SIMPLE, &slots[i2].mutex);
+        slots[i2].index = i2;
         //pj_memset (slots[i].telephone, '\0', sizeof(slots[i].telephone));
         //slots_st[i2] = PJ_FALSE;
         /*status = pj_mutex_create (pool, s, PJ_MUTEX_SIMPLE, &slots[i2].mutex) //pj_sem_create (pool, s, 1, 2, &slots[i2].sem);
@@ -1059,21 +1061,19 @@ void nullize_slot (slot_t *slot)
     slot->input_port = 21;
 }
 
-int get_index_by_inv (pjsip_inv_session *inv)
+int get_slot_by_inv (pjsip_inv_session *inv)
 {
-    for (int i=0; i<20; i++)
-    {
-        if (slots[i].inv_ss == inv)
+    if (inv)
+        if (inv->mod_data[mod_simpleua.id] != NULL)
         {
-            return i;
-        } 
-    }
+            return (int) *( (pj_uint8_t*) inv->mod_data[mod_simpleua.id] );
+        }
     return -1;
 }
 
 void free_slot_by_inv (pjsip_inv_session *inv)
 {
-    int i = get_index_by_inv (inv);
+    int i = get_slot_by_inv (inv);
     
     
     if (i == -1)
