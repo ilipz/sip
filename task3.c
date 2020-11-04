@@ -148,7 +148,7 @@ typedef struct slot_t
 
     unsigned            conf_id;    
     unsigned            input_port;
-    pj_uint8_t          index;
+    int                 index;
    
 } slot_t;
 
@@ -179,7 +179,10 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 {
     PJ_UNUSED_ARG(e);
 
-    slot_t *slot = &slots[get_slot_by_inv (inv)]; // through inv->mod_data
+    int index = get_slot_by_inv (inv);
+    if (index == -1)
+        return;
+    slot_t *slot = &slots[index]; // through inv->mod_data
     if (!slot->busy)
         return;
     if (inv->state == PJSIP_INV_STATE_DISCONNECTED) {
@@ -281,6 +284,7 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 
     }
     
+    
 
    // Verify that we can handle the request. 
     status = pjsip_inv_verify_request(rdata, &options, NULL, NULL,
@@ -320,7 +324,8 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 	return PJ_TRUE;
     }
 
-     
+    
+
      // Get media capability from media endpoint: 
     
       
@@ -362,9 +367,9 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 	return PJ_TRUE;
     }
 
-    
+    inv->mod_data[mod_simpleua.id] = (void*)&tmp->index;
+    printf ("\n\nmod_data=%d\n\n", (int)((void*)inv->mod_data[mod_simpleua.id]));
      //Invite session has been created, decrement & release dialog lock.
-    
     
     
     pjsip_sip_uri *sip_uri = (pjsip_sip_uri*)pjsip_uri_get_uri(rdata->msg_info.to->uri);
@@ -383,20 +388,9 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 
     // Register slot
     
-    if ( !strcmp (telephone, "666") )
-        tmp->input_port = warning_conf_id;
     
-    else if ( !strcmp (telephone, "1234") )
-        tmp->input_port = quick_beep_conf_id;
-
-    else if ( !strcmp (telephone, "9000") )
-        tmp->input_port = station_answer_conf_id;
-    else if ( !strcmp (telephone, "05") )
-        tmp->input_port = player_conf_id;
-    else
-    {
-        tmp->input_port = NULL;
-    }
+    
+    
     
     tmp->inv_ss = inv;
     tmp->dlg = dlg;
@@ -430,11 +424,38 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
     status = pjsip_inv_send_msg(tmp->inv_ss, tdata); 
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
 
+    if ( !strcmp (telephone, "666") )
+        tmp->input_port = warning_conf_id;
+    
+    else if ( !strcmp (telephone, "1234") )
+        tmp->input_port = quick_beep_conf_id;
+
+    else if ( !strcmp (telephone, "9000") )
+        tmp->input_port = station_answer_conf_id;
+    else if ( !strcmp (telephone, "05") )
+        tmp->input_port = player_conf_id;
+    else
+    {
+        status = pjsip_inv_answer
+                (
+                    tmp->inv_ss,
+                    404,                
+                    NULL, NULL, &tdata
+                );
+    
+        PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
+        status = pjsip_inv_send_msg(tmp->inv_ss, tdata); 
+        PJ_ASSERT_RETURN(status == PJ_SUCCESS, PJ_TRUE);
+        free_slot_by_inv (tmp->inv_ss);
+        return PJ_TRUE;
+    }
+
     
     //tmp->state = RINGING;
     //zdes nado vstavit chto-to vrode inv->mod_data[module_index] = (void*) &module_index;
-    tmp->inv_ss->mod_data[mod_simpleua.id] = (void*)&tmp->index;
     
+    
+    //getchar();
     status = pjsip_inv_answer
                 (
                     tmp->inv_ss,
@@ -1061,13 +1082,12 @@ void nullize_slot (slot_t *slot)
     slot->input_port = 21;
 }
 
-int get_slot_by_inv (pjsip_inv_session *inv)
+int get_slot_by_inv (pjsip_inv_session *inv) // zdes byla baga sho DESTROYING SLOT #0 (mb ostal'nye ne free); ksta po etoi je prichine mb sipp lagal
 {
-    if (inv)
-        if (inv->mod_data[mod_simpleua.id] != NULL)
-        {
-            return (int) *( (pj_uint8_t*) inv->mod_data[mod_simpleua.id] );
-        }
+    if (inv != NULL)
+        //if (inv->mod_data[mod_simpleua.id] != NULL) // zdes byla baga sho na #0 slote ne slalos kpv
+            return (int) *(int*)inv->mod_data[mod_simpleua.id];
+    //exit (1);
     return -1;
 }
 
@@ -1077,13 +1097,17 @@ void free_slot_by_inv (pjsip_inv_session *inv)
     
     
     if (i == -1)
+    {
+        PJ_LOG (5, ("free_slot_by_inv()", "slot already clear or an error"));
         return;
+    }
+        
     if (!slots[i].busy)
         return;
     if ( pj_mutex_trylock(slots[i].mutex) != PJ_SUCCESS )
         return;
     
-    printf ("\n\n\tDESTROYING SLOT #%d\n\n", i);
+    PJ_LOG (5, ("free_slot_by_inv()", "destroying slot #%d", i));
     //pjmedia_master_port_stop (slots[i].mp);
 
     /*if (slots[i].timer_heap)
@@ -1091,11 +1115,27 @@ void free_slot_by_inv (pjsip_inv_session *inv)
     /*if (slots[i].mp)
         pjmedia_master_port_destroy (slots[i].mp, PJ_FALSE); */
     
+
     if (slots[i].conf_id < 21 && slots[i].input_port < 21)
         pjmedia_conf_disconnect_port (conf, slots[i].input_port, slots[i].conf_id);
     
     pjmedia_conf_remove_port (conf, slots[i].conf_id);
-    
+
+    if (inv->state == PJSIP_INV_STATE_CONFIRMED)
+    {
+            pjsip_tx_data *request_data=NULL;
+            pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &request_data);
+            pjsip_dlg_send_request (slots[i].dlg, request_data, -1, NULL);
+    } else
+
+    if (inv->state == PJSIP_INV_STATE_EARLY)
+    {
+            pjsip_inv_answer
+                (
+                   slots[i].inv_ss, 486, NULL, NULL, &slots[i].tdata 
+                );
+            pjsip_inv_send_msg(slots[i].inv_ss, slots[i].tdata);
+    }
     if (slots[i].media_stream)
         pjmedia_stream_destroy (slots[i].media_stream);
     if (slots[i].media_transport)
@@ -1103,25 +1143,9 @@ void free_slot_by_inv (pjsip_inv_session *inv)
     pj_timer_heap_cancel_if_active (timer_heap, &slots[i].entry[0], slots[i].entry_id[0]);
     pj_timer_heap_cancel_if_active (timer_heap, &slots[i].entry[1], slots[i].entry_id[1]);
     
-    pjsip_tx_data *request_data=NULL;
-    if (inv)
-    {
-        if (inv->state == PJSIP_INV_STATE_CONFIRMED)
-        {
-            pjsip_dlg_create_request (slots[i].dlg, &pjsip_bye_method, -1, &request_data);
-            pjsip_dlg_send_request (slots[i].dlg, request_data, -1, NULL);
-        } else
-
-        if (inv->state == PJSIP_INV_STATE_EARLY)
-        {
-            pjsip_inv_answer
-                (
-                   slots[i].inv_ss, 486, NULL, NULL, &slots[i].tdata 
-                );
-            pjsip_inv_send_msg(slots[i].inv_ss, slots[i].tdata);
-        }
-        pjsip_inv_end_session (inv, 200, NULL, &slots[i].tdata);
-    }  
+    
+        
+    pjsip_inv_end_session (inv, 200, NULL, &slots[i].tdata);  
     
 
     
