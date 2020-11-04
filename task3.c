@@ -349,7 +349,7 @@ static pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     pjmedia_transport *media_transport; 
     
     status = pjmedia_transport_udp_create3(media_endpt, pj_AF_INET(), NULL, NULL, 
-					       RTP_PORT + pj_rand()%10000 + (pj_rand()%10000), 0, 
+					       RTP_PORT + tmp->index*100, 0, 
 					       &media_transport);
 	if (status != PJ_SUCCESS) 
     {
@@ -452,7 +452,7 @@ static pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     else if ( !strcmp (telephone, "9000") )
         tmp->input_port = station_answer_conf_id;
     else if ( !strcmp (telephone, "05") )
-        tmp->input_port = player_conf_id;
+        tmp->input_port = quick_beep_conf_id;//player_conf_id;
     else
     {
         status = pjsip_inv_answer
@@ -1110,17 +1110,17 @@ int main(int argc, char *argv[])
         emergency_exit ();
     }
 
-    pj_caching_pool_destroy (&cp); // mb iz-za etogo
+    
 
     
 
     if (sip_endpt)
-	    pjsip_endpt_destroy(sip_endpt); //padaet zdes (stroka 1113)
+	    pjsip_endpt_destroy(sip_endpt); 
 
     // Release pool 
     if (pool)
 	    pj_pool_release(pool);
-
+    pj_caching_pool_destroy (&cp); 
     printf ("\n\n");
     PJ_LOG (5, (THIS_FUNCTION, "Application finished normally\n"));
     return 0;
