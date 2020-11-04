@@ -1,6 +1,6 @@
 /*
     TASK 3
-
+    Podozrevayu shto delo v master porte i\ili conference bridge
 */
 
 #include <pjsip.h>
@@ -349,7 +349,7 @@ static pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     pjmedia_transport *media_transport; 
     
     status = pjmedia_transport_udp_create3(media_endpt, pj_AF_INET(), NULL, NULL, 
-					       RTP_PORT + tmp->index*100, 0, 
+					       RTP_PORT + timer_count, 0, 
 					       &media_transport);
 	if (status != PJ_SUCCESS) 
     {
@@ -475,7 +475,7 @@ static pj_bool_t on_rx_request (pjsip_rx_data *rdata)
             pj_perror (5, THIS_FUNCTION, status, "pjsip_inv_send_msg()");
             emergency_exit ();
         }
-        free_slot_by_inv (tmp->inv_ss);
+        free_slot (tmp);
         return PJ_TRUE;
     }
 
@@ -641,7 +641,7 @@ static void call_on_media_update (pjsip_inv_session *inv, pj_status_t status)
             pj_perror (5, THIS_FUNCTION, status, "pj_timer_heap_schedule()");
             emergency_exit ();
     }
-
+    PJ_LOG (5, (THIS_FUNCTION, "exited for slot #%d", index));
     
 
 
@@ -1100,6 +1100,9 @@ int main(int argc, char *argv[])
         emergency_exit ();
     }
 
+    for (int i=0; i<20; i++)
+        destroy_slot (&slots[i]);
+
     if (conf_mp)
         pjmedia_master_port_destroy (conf_mp, PJ_FALSE);
 
@@ -1111,7 +1114,7 @@ int main(int argc, char *argv[])
     }
 
     
-
+    
     
 
     if (sip_endpt)
@@ -1251,14 +1254,14 @@ slot_t * get_slot ()
                 }
                 return &slots[i];
             }
-            else
+            /*else
             {
-                /*if (PJ_SUCCESS != status)
+                if (PJ_SUCCESS != status)
                 {
                     pj_perror (5, THIS_FUNCTION, status, "pj_mutex_trylock() for slot #%d", i);
                     emergency_exit ();
-                }*/
-            }
+                }
+            } */
     return NULL;
 }
 
@@ -1463,7 +1466,7 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
         PJ_LOG (5, (THIS_FUNCTION, PJ_LOG_ERROR"tmp->input_port is not set"));
         free_slot_by_inv (tmp->inv_ss);
         return;
-    }
+    } 
 
     status = pjmedia_conf_disconnect_port (conf, ringback_conf_id, tmp->conf_id);
     if (PJ_SUCCESS != status)
@@ -1472,7 +1475,7 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
         emergency_exit ();
     }
 
-    status = pjmedia_conf_connect_port (conf, tmp->input_port, tmp->conf_id, 64);
+    status = pjmedia_conf_connect_port (conf, tmp->input_port, tmp->conf_id, 0);
     if (PJ_SUCCESS != status)
     {
         pj_perror (5, THIS_FUNCTION, status, "pjmedia_conf_connect_port for slot #%d", index);
