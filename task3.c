@@ -1088,9 +1088,10 @@ int main(int argc, char *argv[])
             printf ("\n\nPRESS 'P' TO CONTINUE...\n\n");
             while (pause)
                 sleep (1);
+                
         }
         
-    }
+    } 
 /////////////////////////////////////////////////////////////////////////////
 
     status = pj_thread_destroy (handles_thread);
@@ -1425,6 +1426,7 @@ void free_slot (slot_t *slot)
         pj_perror (5, THIS_FUNCTION, status, "pj_mutex_unlock() for slot #%d", slot->index);
         emergency_exit ();
     }
+    PJ_LOG (5, (THIS_FUNCTION, "freied slot %d", slot->index));
 }
 
 void free_slot_by_inv (pjsip_inv_session *inv)
@@ -1468,6 +1470,8 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
         return;
     } 
 
+    //pjmedia_master_port_stop (conf_mp);
+
     status = pjmedia_conf_disconnect_port (conf, ringback_conf_id, tmp->conf_id);
     if (PJ_SUCCESS != status)
     {
@@ -1481,6 +1485,8 @@ void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
         pj_perror (5, THIS_FUNCTION, status, "pjmedia_conf_connect_port for slot #%d", index);
         emergency_exit ();
     }
+
+    //pjmedia_master_port_start (conf_mp);
 
     status =   pjsip_inv_answer (tmp->inv_ss, 200, NULL, NULL, &tmp->tdata);
     if (PJ_SUCCESS != status)

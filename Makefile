@@ -3,8 +3,11 @@ ARM_CC = arm-linux-gnueabihf-gcc-5 -c
 CC = gcc  -c -g
 IP = 127.0.0.1
 CALLS_PER_SEC = 20
-CALL_LENGTH = 13
+CALL_LENGTH = 30
 TEL = 666
+LOCAL_IP = 127.0.0.1
+CALLS = 1
+PER_TIME = 1500
 
 all: task1 task2 task3 task4 task1-arm task2-arm task3-arm task4-arm
 
@@ -44,9 +47,9 @@ task4-arm:
 	gcc task4-arm.o -o task4-arm $(PJ_FLAG)
 
 task3-test:
-	sipp $(IP) -s $(TEL)  -d $(CALL_LENGTH) -l 20 -aa -mi 10.25.72.103 -rtp_echo -nd -r $(CALLS) -rp $(PER_TIME) 
+	sipp $(IP) -s $(TEL)  -d $(CALL_LENGTH) -l 20 -aa -mi $(LOCAL_IP) -rtp_echo -nd -r $(CALLS) -rp $(PER_TIME) 
 .PHONY: clean
-	
+# make task3-test CALLS=1 PER_TIME=1500 IP=127.0.0.1 LOCAL_IP=127.0.0.1 CALL_LENGTH=30s
 clean:
 	rm *.o 
 	rm task1 task1-arm task2 task2-arm task3 task3-arm task4 task4-arm
