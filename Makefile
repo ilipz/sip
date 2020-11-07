@@ -1,5 +1,5 @@
 PJ_FLAG =  `pkg-config --cflags --libs libpjproject`
-ARM_CC = arm-linux-gnueabihf-gcc-5 -c 
+ARM_CC = arm-marvell-linux-gnueabi-gcc -c 
 CC = gcc  -c -g
 IP = 127.0.0.1
 CALLS_PER_SEC = 20
