@@ -14,13 +14,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-
+#include <unistd.h>
 // Settings 
 #define PJ_LOG_ERROR "!!! ERROR: " 
 #define APPNAME     "TASK 3:"
 
-#define SIP_PORT	5060	     // Listening SIP port		
-#define RTP_PORT	4000	     // RTP port			
+pj_uint16_t SIP_PORT = 7060;	     // Listening SIP port		
+pj_uint16_t RTP_PORT = 9000;	     // RTP port			
 
 ////////////////// VARS ///////////////////////
 pjsip_endpoint      *sip_endpt; //pjsip_endpt_get_timer_heap
@@ -52,7 +52,7 @@ pjmedia_conf        *conf=NULL;
 
 pj_uint8_t          slots_count=20;
 
-pj_bool_t           pause=PJ_FALSE;
+pj_bool_t           pause1=PJ_FALSE;
 pj_bool_t           to_halt=PJ_FALSE;
 pj_bool_t           to_exit=PJ_FALSE;
 
@@ -452,7 +452,7 @@ static pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     else if ( !strcmp (telephone, "9000") )
         tmp->input_port = station_answer_conf_id;
     else if ( !strcmp (telephone, "05") )
-        tmp->input_port = quick_beep_conf_id;//player_conf_id;
+        tmp->input_port = player_conf_id;
     else
     {
         status = pjsip_inv_answer
@@ -626,7 +626,7 @@ static void call_on_media_update (pjsip_inv_session *inv, pj_status_t status)
 
 	
     
-    status = pjmedia_conf_connect_port (conf, ringback_conf_id, tmp->conf_id, 0);
+    status = pjmedia_conf_connect_port (conf, ringback_conf_id, tmp->conf_id, 128);
     if (PJ_SUCCESS != status)
     {
             pj_perror (5, THIS_FUNCTION, status, "pjmedia_conf_connect_port()");
@@ -656,6 +656,27 @@ int main(int argc, char *argv[])
     const char THIS_FUNCTION[] = "main()";
     printf ("\n");
     PJ_LOG (5, (THIS_FUNCTION, "Application started\n\n"));
+
+    if (argc > 1)
+        if (argc < 3)
+        {
+            printf ("Too few arguments for app\n");
+            printf ("USAGE: %s <SIP port> <RTP port>\n", argv[0]);
+            exit (1);
+        }
+        else
+        {
+            int sip_p = atoi (argv[1]);
+            int rtp_p = atoi (argv[2]);
+            if (sip_p < 4000 || rtp_p < 4000)
+            {
+                printf ("Ports numbers must be more than 4000\n");
+                exit (1);
+            }
+            SIP_PORT = sip_p;
+            RTP_PORT = rtp_p;
+        }
+        
 
     pj_status_t status;
 
@@ -1079,14 +1100,14 @@ int main(int argc, char *argv[])
             emergency_exit ();
         }
 
-        if (pause || to_exit || to_halt)
+        if (pause1 || to_exit || to_halt)
         {
             if (to_halt)
                 halt ();
             if (to_exit)
                 emergency_exit ();
             printf ("\n\nPRESS 'P' TO CONTINUE...\n\n");
-            while (pause)
+            while (pause1)
                 sleep (1);
                 
         }
@@ -1208,7 +1229,7 @@ int thread_func (void *p)
                 break;
 
             case 'p':
-                pause = !pause;
+                pause1 = !pause1;
                 break;
 
             case 't':
