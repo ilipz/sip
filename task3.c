@@ -679,10 +679,19 @@ int main(int argc, char *argv[])
             switch (option_symbol)
             {
                 case 's':
-                    SIP_PORT = atoi (long_options[option_index].name);
+                    if (optarg)
+                    {
+                        SIP_PORT = atoi (optarg);
+                        printf ("Set SIP port to %s\n", optarg);
+                    }
                     break;
+
                 case 'r':
-                    RTP_PORT = atoi (long_options[option_index].name);
+                    if (optarg)
+                    {
+                        RTP_PORT = atoi (optarg);
+                        printf ("Set RTP port to %s\n", optarg);
+                    }
             }
             if (option_symbol == -1)
                 break;
