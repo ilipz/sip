@@ -1,6 +1,5 @@
 /*
     TASK 3
-    Podozrevayu shto delo v master porte i\ili conference bridge
 */
 
 #include <pjsip.h>
@@ -15,6 +14,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <getopt.h>
 // Settings 
 #define PJ_LOG_ERROR "!!! ERROR: " 
 #define APPNAME     "TASK 3:"
@@ -658,25 +658,42 @@ int main(int argc, char *argv[])
     PJ_LOG (5, (THIS_FUNCTION, "Application started\n\n"));
 
     if (argc > 1)
+    {
         if (argc < 3)
         {
             printf ("Too few arguments for app\n");
             printf ("USAGE: %s <SIP port> <RTP port>\n", argv[0]);
             exit (1);
         }
-        else
+        while (1)
         {
-            int sip_p = atoi (argv[1]);
-            int rtp_p = atoi (argv[2]);
-            if (sip_p < 4000 || rtp_p < 4000)
+            int option_symbol;
+            int option_index;
+            static struct option long_options[] = 
+            {
+                {"sip-port", 1, 0, 's'},
+                {"rtp-port", 1, 0, 'r'},
+                {0, 0, 0, 0}
+            };
+            option_symbol = getopt_long_only (argc, argv, "sip-port:rtp-port:", long_options, &option_index);
+            switch (option_symbol)
+            {
+                case 's':
+                    SIP_PORT = atoi (long_options[option_index].name);
+                    break;
+                case 'r':
+                    RTP_PORT = atoi (long_options[option_index].name);
+            }
+            if (option_symbol == -1)
+                break;
+        }
+        if (SIP_PORT < 4000 || RTP_PORT < 4000)
             {
                 printf ("Ports numbers must be more than 4000\n");
                 exit (1);
             }
-            SIP_PORT = sip_p;
-            RTP_PORT = rtp_p;
-        }
-        
+
+    }    
 
     pj_status_t status;
 
