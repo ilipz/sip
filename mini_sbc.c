@@ -299,7 +299,7 @@ static pj_status_t init_sip()
 
 	status = pjsip_udp_transport_start( app.sip_endpt, &addr, 
 					    (app.local_addr.slen ? &addrname:NULL),
-					    1, &tp);
+					    2, &tp);
 	if (status != PJ_SUCCESS) {
 	    app_perror(THIS_FILE, "Unable to start UDP transport", status);
 	    return status;
@@ -560,6 +560,7 @@ static void process_incoming_call(pjsip_rx_data *rdata)
     pjmedia_sdp_session *sdp;
     pjsip_tx_data *tdata;
     pj_status_t status;
+	pj_str_t reason;
 
     /* Find free call slot */
     for (i=0; i<app.max_calls; ++i) {
@@ -567,13 +568,13 @@ static void process_incoming_call(pjsip_rx_data *rdata)
 	    break;
     }
 
-    if (i == app.max_calls) {
+    /*if (i == app.max_calls) {
 	const pj_str_t reason = pj_str("Too many calls");
 	pjsip_endpt_respond_stateless( app.sip_endpt, rdata, 
 				       500, &reason,
 				       NULL, NULL);
 	return;
-    }
+    } */
 
     call = &app.call[i];
 
@@ -602,11 +603,26 @@ static void process_incoming_call(pjsip_rx_data *rdata)
 	return;
     }
 
+	// 100 respons means connection made and SBC ringing to callee
+	status = pjsip_endpt_respond_stateless( app.sip_endpt, rdata, 
+				       100, NULL,
+				       NULL, NULL);
+	if (status != PJ_SUCCESS)
+	{
+		char abc[100];
+		pj_strerror(status, abc, 100);
+		pj_perror (5, "stateless respond", status, "lol");
+		printf ("%s\n", abc);
+		exit (1);
+	}
+
+	
+
     /* Create UAS dialog */
     status = pjsip_dlg_create_uas_and_inc_lock( pjsip_ua_instance(), rdata,
 						&app.local_contact, &dlg);
     if (status != PJ_SUCCESS) {
-	const pj_str_t reason = pj_str("Unable to create dialog");
+	reason = pj_str("Unable to create dialog");
 	pjsip_endpt_respond_stateless( app.sip_endpt, rdata, 
 				       500, &reason,
 				       NULL, NULL);
@@ -616,7 +632,14 @@ static void process_incoming_call(pjsip_rx_data *rdata)
     /* Create SDP */
     create_sdp( dlg->pool, call, &sdp);
 
+
+	// Here resolve numbers (num -> IP), connecting to callee (using SDP from caller), getting its SDP and continue next 
+
+
     /* Create UAS invite session */
+	
+		
+
     status = pjsip_inv_create_uas( dlg, rdata, sdp, 0, &call->inv);
     if (status != PJ_SUCCESS) {
 	pjsip_dlg_create_response(dlg, rdata, 500, NULL, &tdata);
@@ -626,7 +649,7 @@ static void process_incoming_call(pjsip_rx_data *rdata)
     }
     
     /* Invite session has been created, decrement & release dialog lock */
-    pjsip_dlg_dec_lock(dlg);
+    pjsip_dlg_dec_lock(dlg);	
 
     /* Attach call data to invite session */
     call->inv->mod_data[mod_siprtp.id] = call;
@@ -651,8 +674,11 @@ static void process_incoming_call(pjsip_rx_data *rdata)
     }
 
 
-    /* Send the 200 response. */  
-    status = pjsip_inv_send_msg(call->inv, tdata); 
+    /* Send the 200 response. */
+
+	// Here need sync both shoulders before  
+    
+	status = pjsip_inv_send_msg(call->inv, tdata); 
     PJ_ASSERT_ON_FAIL(status == PJ_SUCCESS, return);
 
 
@@ -1092,7 +1118,7 @@ static void on_rx_rtp(void *user_data, void *pkt, pj_ssize_t size)
 	return;
     }
 
-    /* Decode RTP packet. */
+    /* Decode RTP packet. 
     status = pjmedia_rtp_decode_rtp(&strm->in_sess, 
 				    pkt, (int)size, 
 				    &hdr, &payload, &payload_len);
@@ -1103,12 +1129,12 @@ static void on_rx_rtp(void *user_data, void *pkt, pj_ssize_t size)
 
     //PJ_LOG(4,(THIS_FILE, "Rx seq=%d", pj_ntohs(hdr->seq)));
 
-    /* Update the RTCP session. */
+    /* Update the RTCP session. 
     pjmedia_rtcp_rx_rtp(&strm->rtcp, pj_ntohs(hdr->seq),
 			pj_ntohl(hdr->ts), payload_len);
 
-    /* Update RTP session */
-    pjmedia_rtp_session_update(&strm->in_sess, hdr, NULL);
+    /* Update RTP session 
+    pjmedia_rtp_session_update(&strm->in_sess, hdr, NULL); */
 
 }
 
@@ -1319,6 +1345,7 @@ static void call_on_media_update( pjsip_inv_session *inv,
 	return;
     }
 
+	
     /* Get the remainder of codec information from codec descriptor */
     if (audio->si.fmt.pt == app.audio_codec.pt)
 	codec_desc = &app.audio_codec;
@@ -2002,6 +2029,7 @@ static void console_main()
 
 	case 's':
 	    print_avg_stat();
+		
 	    break;
 
 	case 'l':
@@ -2164,6 +2192,7 @@ int main(int argc, char *argv[])
 {
     unsigned i;
     pj_status_t status;
+	pj_log_set_level (5);
 
     /* Must init PJLIB first */
     status = pj_init();
@@ -2223,6 +2252,7 @@ int main(int argc, char *argv[])
 
 	for (i=0; i<app.max_calls; ++i) {
 	    status = make_call(&app.uri_to_call);
+		
 	    if (status != PJ_SUCCESS) {
 		app_perror(THIS_FILE, "Error making call", status);
 		break;

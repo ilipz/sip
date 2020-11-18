@@ -51,5 +51,5 @@ task3-test:
 # make task3-test CALLS=1 PER_TIME=1500 IP=127.0.0.1 LOCAL_IP=127.0.0.1 CALL_LENGTH=30s
 clean:
 	rm *.o 
-	rm task1 task1-arm task2 task2-arm task3 task3-arm task4 task4-arm
+	rm task1 task1-arm task2 task2-arm task3 task3-arm ms ms_arm
 
