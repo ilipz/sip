@@ -233,8 +233,8 @@ static pjsip_module mod_siprtp =
     NULL,			    /* stop()			*/
     NULL,			    /* unload()			*/
     &on_rx_request,		    /* on_rx_request()		*/
-    NULL,			    /* on_rx_response()		*/  
-    NULL,			    /* on_tx_request.		*/ //here may be ACK is sent
+    NULL,			    /* on_rx_response()		*/
+    NULL,			    /* on_tx_request.		*/
     NULL,			    /* on_tx_response()		*/
     NULL,			    /* on_tsx_state()		*/
 };
@@ -243,10 +243,10 @@ static pjsip_module mod_siprtp =
 /* Codec constants */
 struct codec audio_codecs[] = 
 {
-    { 0,  "PCMU", 8000, 16000, 20, "G.711 ULaw" },
+    { 0,  "PCMU", 8000, 64000, 20, "G.711 ULaw" },
     //{ 3,  "GSM",  8000, 13200, 20, "GSM" },
     //{ 4,  "G723", 8000, 6400,  30, "G.723.1" },
-    { 8,  "PCMA", 8000, 16000, 20, "G.711 ALaw" },
+    { 8,  "PCMA", 8000, 64000, 20, "G.711 ALaw" },
     //{ 18, "G729", 8000, 8000,  20, "G.729" },
 };
 
@@ -1119,7 +1119,7 @@ static void on_rx_rtp(void *user_data, void *pkt, pj_ssize_t size)
 	app_perror(THIS_FILE, "RTP recv() error", (pj_status_t)-size);
 	return;
     }
-	status = pjmedia_transport_send_rtp(strm->transport, pkt, size);
+	//status = pjmedia_transport_send_rtp(strm->transport, pkt, size);
 	//rtp_pkt10 = pkt;
 	memcpy (rtcp_pkt10, pkt, size);
 	if (status != PJ_SUCCESS)
@@ -1419,8 +1419,8 @@ static void call_on_media_update( pjsip_inv_session *inv,
     /* Start media thread. */
     audio->thread_quit_flag = 0;
 
-    /*status = pj_thread_create( inv->pool, "media", &media_thread, audio,
-			       0, 0, &audio->thread); */
+    status = pj_thread_create( inv->pool, "media", &media_thread, audio,
+			       0, 0, &audio->thread); 
     if (status != PJ_SUCCESS) {
 	app_perror(THIS_FILE, "Error creating media thread", status);
 	return;
@@ -2387,3 +2387,4 @@ int main(int argc, char *argv[])
     PJ_LOG(4, (THIS_FILE, "New thread policy=%d, priority=%d",
 	      policy, tp.sched_priority));
 } */
+
