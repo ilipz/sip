@@ -60,6 +60,7 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+task3-
 .Makefile.swp
 task3.log
 task3-arm_stb

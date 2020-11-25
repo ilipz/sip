@@ -189,8 +189,8 @@ typedef struct junction
 
 numbook_t		nums[10] =
 {
-	{"05", "127.0.1.1:7060"},
-	{"666", "127.0.1.1:7060"},
+	{"05", "192.168.41.250:15060"},
+	{"666", "10.25.72.103:7060"},
 	{"9000", "127.0.1.1:7060"},
 	{"1234", "127.0.1.1:7060"}
 };
@@ -223,6 +223,8 @@ pj_status_t app_logging_init(void);
 void app_logging_shutdown(void);
 static pj_bool_t logger_on_rx_msg(pjsip_rx_data *rdata);
 static pj_status_t logger_on_tx_msg(pjsip_tx_data *tdata);
+
+static int media_thread(void *arg);
 
 /* The module instance. */
 static pjsip_module msg_logger = 
@@ -315,10 +317,10 @@ static pjsip_module mod_siprtp =
 struct codec audio_codecs[] = 
 {
     { 0,  "PCMU", 8000, 16000, 20, "G.711 ULaw" },
-    //{ 3,  "GSM",  8000, 13200, 20, "GSM" },
-    //{ 4,  "G723", 8000, 6400,  30, "G.723.1" },
+    { 3,  "GSM",  8000, 13200, 20, "GSM" },
+    { 4,  "G723", 8000, 6400,  30, "G.723.1" },
     { 8,  "PCMA", 8000, 16000, 20, "G.711 ALaw" },
-    //{ 18, "G729", 8000, 8000,  20, "G.729" },
+    { 18, "G729", 8000, 8000,  20, "G.729" },
 };
 
 
@@ -327,7 +329,7 @@ struct codec audio_codecs[] =
  */
 void on_send_ack (pjsip_inv_session *inv, pjsip_rx_data *rdata)
 {
-	if (send_ack)
+	if (!send_ack)
 		return;
 	pjsip_tx_data *ack_data;
 	
@@ -419,7 +421,7 @@ static pj_status_t init_sip()
 	inv_cb.on_state_changed = &call_on_state_changed;
 	inv_cb.on_new_session = &call_on_forked;
 	inv_cb.on_media_update = &call_on_media_update;
-	inv_cb.on_send_ack = &on_send_ack;
+	//inv_cb.on_send_ack = &on_send_ack;
 
 	/* Initialize invite session module:  */
 	status = pjsip_inv_usage_init(app.sip_endpt, &inv_cb);
@@ -574,7 +576,7 @@ static pj_status_t make_call(const pj_str_t *dst_uri)//, pjmedia_sdp_session *sd
 
 
     /* Find unused call slot */
-    for (i=0; i<app.max_calls; ++i) {
+    /*for (i=0; i<app.max_calls; ++i) {
 	if (app.call[i].inv == NULL)
 	    break;
     }
@@ -582,8 +584,8 @@ static pj_status_t make_call(const pj_str_t *dst_uri)//, pjmedia_sdp_session *sd
     if (i == app.max_calls)
 	return PJ_ETOOMANY;
 
-    call = &app.call[i];
-
+    call = &app.call[i]; */
+	call = &app.call[10];
     /* Create UAC dialog */
     status = pjsip_dlg_create_uac( pjsip_ua_instance(), 
 				   &app.local_uri,	/* local URI	    */
@@ -779,6 +781,12 @@ static void process_incoming_call(pjsip_rx_data *rdata)
     
 	status = pjsip_inv_send_msg(call->inv, tdata); 
     PJ_ASSERT_ON_FAIL(status == PJ_SUCCESS, return);
+	pj_str_t dst_uri = pj_str (dest_uri);
+	printf ("\n\nCalling %s...\n\n", dest_uri);
+	if (status = make_call (&dst_uri) != PJ_SUCCESS)
+	{
+		pj_perror (5, "process call", status, "make_call");
+	}
 
 
     /* Done */
@@ -966,7 +974,7 @@ static pj_status_t init_options(int argc, char *argv[])
     }
 
     /* Init defaults */
-    app.max_calls = 1;
+    app.max_calls = 12;
     app.thread_count = 1;
     app.sip_port = 5060;
     app.rtp_start_port = RTP_START_PORT;
@@ -1205,7 +1213,7 @@ static void on_rx_rtp(void *user_data, void *pkt, pj_ssize_t size)
 		printf ("\n%s\n", stat);
 	}
 
-    /* Decode RTP packet. 
+     //Decode RTP packet. 
     status = pjmedia_rtp_decode_rtp(&strm->in_sess, 
 				    pkt, (int)size, 
 				    &hdr, &payload, &payload_len);
@@ -1214,14 +1222,14 @@ static void on_rx_rtp(void *user_data, void *pkt, pj_ssize_t size)
 	return;
     }
 
-    //PJ_LOG(4,(THIS_FILE, "Rx seq=%d", pj_ntohs(hdr->seq)));
+    PJ_LOG(4,(THIS_FILE, "Rx seq=%d", pj_ntohs(hdr->seq)));
 
-    /* Update the RTCP session. 
+     //Update the RTCP session. 
     pjmedia_rtcp_rx_rtp(&strm->rtcp, pj_ntohs(hdr->seq),
 			pj_ntohl(hdr->ts), payload_len);
 
-    /* Update RTP session 
-    pjmedia_rtp_session_update(&strm->in_sess, hdr, NULL); */
+    // Update RTP session 
+    pjmedia_rtp_session_update(&strm->in_sess, hdr, NULL); 
 
 }
 
@@ -1254,7 +1262,7 @@ static void on_rx_rtcp(void *user_data, void *pkt, pj_ssize_t size)
 		pj_strerror(status, stat, 100);
 		printf ("\n%s\n", stat);
 	}
-	//pjmedia_rtcp_rx_rtcp(&strm->rtcp, pkt, size);
+	pjmedia_rtcp_rx_rtcp(&strm->rtcp, pkt, size);
 }
 
 
@@ -1346,8 +1354,8 @@ static void call_on_media_update( pjsip_inv_session *inv,
     /* Start media thread. */
     audio->thread_quit_flag = 0;
 
-    /*status = pj_thread_create( inv->pool, "media", &media_thread, audio,
-			       0, 0, &audio->thread); */
+    status = pj_thread_create( inv->pool, "media", &media_thread, audio,
+			       0, 0, &audio->thread); 
     if (status != PJ_SUCCESS) {
 	app_perror(THIS_FILE, "Error creating media thread", status);
 	return;
@@ -1601,7 +1609,7 @@ int main(int argc, char *argv[])
 	PJ_LOG(3,(THIS_FILE, "Ready for incoming calls (max=%d)", 
 		  app.max_calls));
 		  pj_str_t str = pj_str("sip:vedro@192.168.0.3:15060");
-		  make_call (&str);
+		  //make_call (&str);
 
 
 	/* Start user interface loop */
