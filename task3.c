@@ -1458,6 +1458,7 @@ void free_slot (slot_t *slot)
             pj_perror (5, THIS_FUNCTION, status, "pjsip_inv_end_session() for slot #%d", slot->index);
             emergency_exit ();
         }
+        pjsip_inv_send_msg(slot->inv_ss, slot->tdata);
     }
     
 

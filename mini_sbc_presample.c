@@ -67,6 +67,9 @@ static const char *USAGE =
 #define RTP_START_PORT	4000
 
 
+int send_ack=1;
+
+
 /* Codec descriptor: */
 struct codec
 {
@@ -77,9 +80,6 @@ struct codec
     unsigned	ptime;
     char*	description;
 };
-
-char rtcp_pkt10[1000];
-char rtp_pkt10[1000];
 
 /* A bidirectional media stream created when the call is active. */
 struct media_stream
@@ -116,7 +116,7 @@ struct media_stream
 /* This is a call structure that is created when the application starts
  * and only destroyed when the application quits.
  */
-struct call
+typedef struct call
 {
     unsigned		 index;
     pjsip_inv_session	*inv;
@@ -126,9 +126,14 @@ struct call
     pj_time_val		 response_time;
     pj_time_val		 connect_time;
 
-    pj_timer_entry	 d_timer;	    /**< Disconnect timer.	*/
-};
+    //pj_timer_entry	 d_timer;	    /**< Disconnect timer.	*/
+} call_t;
 
+typedef struct numbook
+{
+	char num[8];
+	char addr[32];
+} numbook_t;
 
 /* Application's global variables */
 static struct app
@@ -164,13 +169,85 @@ static struct app
 
     pjmedia_endpt	*med_endpt;
     struct call		 call[MAX_CALLS];
+	
 } app;
 
+
+typedef struct shoulder
+{
+	call_t call;
+	enum type {IN=0, OUT=1};
+} shoulder_t;
+
+typedef struct junction
+{
+	shoulder_t shoulder_in;
+	shoulder_t shoulder_out;
+	
+	pj_bool_t  busy;
+	pj_bool_t  disabled;
+
+	pj_uint8_t index;
+	
+} junction_t;
+
+numbook_t		nums[10] =
+{
+	{"05", "192.168.41.250:15060"},
+	{"666", "10.25.72.103:7060"},
+	{"9000", "192.168.0.9:7060"},
+	{"1234", "127.0.1.1:7060"}
+};
+
+
+pj_bool_t num_exists (char *num)
+{
+	for (int i=0; i<10; i++)
+		if (!strcmp(nums[i].num, num))
+			return PJ_TRUE;
+	return PJ_FALSE;
+}
+
+char* num_addr (char *num)
+{
+	for (int i=0; i<10; i++)
+		if (!strcmp(nums[i].num, num))
+			return nums[i].addr;
+	return NULL;
+}
 
 
 /*
  * Prototypes:
  */
+
+static void print_avg_stat(void);
+static void list_calls();
+pj_status_t app_logging_init(void);
+void app_logging_shutdown(void);
+static pj_bool_t logger_on_rx_msg(pjsip_rx_data *rdata);
+static pj_status_t logger_on_tx_msg(pjsip_tx_data *tdata);
+
+static int media_thread(void *arg);
+
+/* The module instance. */
+static pjsip_module msg_logger = 
+{
+    NULL, NULL,				/* prev, next.		*/
+    { "mod-siprtp-log", 14 },		/* Name.		*/
+    -1,					/* Id			*/
+    PJSIP_MOD_PRIORITY_TRANSPORT_LAYER-1,/* Priority	        */
+    NULL,				/* load()		*/
+    NULL,				/* start()		*/
+    NULL,				/* stop()		*/
+    NULL,				/* unload()		*/
+    &logger_on_rx_msg,			/* on_rx_request()	*/
+    &logger_on_rx_msg,			/* on_rx_response()	*/
+    &logger_on_tx_msg,			/* on_tx_request.	*/
+    &logger_on_tx_msg,			/* on_tx_response()	*/
+    NULL,				/* on_tsx_state()	*/
+
+};
 
 /* Callback to be called when SDP negotiation is done in the call: */
 static void call_on_media_update( pjsip_inv_session *inv,
@@ -233,8 +310,8 @@ static pjsip_module mod_siprtp =
     NULL,			    /* stop()			*/
     NULL,			    /* unload()			*/
     &on_rx_request,		    /* on_rx_request()		*/
-    NULL,			    /* on_rx_response()		*/
-    NULL,			    /* on_tx_request.		*/
+    NULL,			    /* on_rx_response()		*/  
+    NULL,			    /* on_tx_request.		*/ //here may be ACK is sent
     NULL,			    /* on_tx_response()		*/
     NULL,			    /* on_tsx_state()		*/
 };
@@ -243,17 +320,31 @@ static pjsip_module mod_siprtp =
 /* Codec constants */
 struct codec audio_codecs[] = 
 {
-    { 0,  "PCMU", 8000, 64000, 20, "G.711 ULaw" },
-    //{ 3,  "GSM",  8000, 13200, 20, "GSM" },
-    //{ 4,  "G723", 8000, 6400,  30, "G.723.1" },
-    { 8,  "PCMA", 8000, 64000, 20, "G.711 ALaw" },
-    //{ 18, "G729", 8000, 8000,  20, "G.729" },
+    { 0,  "PCMU", 8000, 16000, 20, "G.711 ULaw" },
+    { 3,  "GSM",  8000, 13200, 20, "GSM" },
+    { 4,  "G723", 8000, 6400,  30, "G.723.1" },
+    { 8,  "PCMA", 8000, 16000, 20, "G.711 ALaw" },
+    { 18, "G729", 8000, 8000,  20, "G.729" },
 };
 
 
 /*
  * Init SIP stack
  */
+void on_send_ack (pjsip_inv_session *inv, pjsip_rx_data *rdata)
+{
+	
+	if (!send_ack)
+		return;
+		printf ("\n\nACK SENDING\n\n");
+	pjsip_tx_data *ack_data;
+	
+    pjsip_dlg_create_request (inv->dlg, &pjsip_ack_method, -1, &ack_data);
+	
+    pjsip_dlg_send_request (inv->dlg, ack_data, -1, NULL); 
+	send_ack = 0;
+}
+
 static pj_status_t init_sip()
 {
     unsigned i;
@@ -336,6 +427,7 @@ static pj_status_t init_sip()
 	inv_cb.on_state_changed = &call_on_state_changed;
 	inv_cb.on_new_session = &call_on_forked;
 	inv_cb.on_media_update = &call_on_media_update;
+	inv_cb.on_send_ack = &on_send_ack;
 
 	/* Initialize invite session module:  */
 	status = pjsip_inv_usage_init(app.sip_endpt, &inv_cb);
@@ -490,7 +582,7 @@ static pj_status_t make_call(const pj_str_t *dst_uri)//, pjmedia_sdp_session *sd
 
 
     /* Find unused call slot */
-    for (i=0; i<app.max_calls; ++i) {
+    /*for (i=0; i<app.max_calls; ++i) {
 	if (app.call[i].inv == NULL)
 	    break;
     }
@@ -498,8 +590,8 @@ static pj_status_t make_call(const pj_str_t *dst_uri)//, pjmedia_sdp_session *sd
     if (i == app.max_calls)
 	return PJ_ETOOMANY;
 
-    call = &app.call[i];
-
+    call = &app.call[i]; */
+	call = &app.call[10];
     /* Create UAC dialog */
     status = pjsip_dlg_create_uac( pjsip_ua_instance(), 
 				   &app.local_uri,	/* local URI	    */
@@ -564,6 +656,11 @@ static void process_incoming_call(pjsip_rx_data *rdata)
     pj_status_t status;
 	pj_str_t reason;
 
+	
+
+
+
+
     /* Find free call slot */
     for (i=0; i<app.max_calls; ++i) {
 	if (app.call[i].inv == NULL)
@@ -605,24 +702,32 @@ static void process_incoming_call(pjsip_rx_data *rdata)
 	return;
     }
 
+	pjsip_sip_uri *sip_uri = (pjsip_sip_uri*)pjsip_uri_get_uri(rdata->msg_info.to->uri);
+	char telephone[64] =  {0};
+    char *dest;
+	strncpy (telephone, sip_uri->user.ptr, sip_uri->user.slen);
+
+	if ((num_exists(telephone) == PJ_FALSE) || ((dest = num_addr(telephone)) == NULL))
+	{
+		pjsip_endpt_respond_stateless(app.sip_endpt, rdata, 404, NULL, NULL, NULL);
+		return;
+	}
+
+	// Former URI
+	char dest_uri[128];
+	sprintf (dest_uri, "sip:%s@%s", telephone, dest);
+	
+
 	// 100 respons means connection made and SBC ringing to callee
 	status = pjsip_endpt_respond_stateless( app.sip_endpt, rdata, 
 				       100, NULL,
 				       NULL, NULL);
-	if (status != PJ_SUCCESS)
-	{
-		char abc[100];
-		pj_strerror(status, abc, 100);
-		pj_perror (5, "stateless respond", status, "lol");
-		printf ("%s\n", abc);
-		exit (1);
-	}
 
 	
-
     /* Create UAS dialog */
     status = pjsip_dlg_create_uas_and_inc_lock( pjsip_ua_instance(), rdata,
 						&app.local_contact, &dlg);
+
     if (status != PJ_SUCCESS) {
 	reason = pj_str("Unable to create dialog");
 	pjsip_endpt_respond_stateless( app.sip_endpt, rdata, 
@@ -660,8 +765,10 @@ static void process_incoming_call(pjsip_rx_data *rdata)
     pj_gettimeofday(&call->start_time);
 
 
-
-    /* Create 200 response .*/
+	pjsip_inv_initial_answer(call->inv, rdata, 180, 
+				      NULL, NULL, &tdata);
+	pjsip_inv_send_msg(call->inv, tdata); 
+    /* Create 183 response .*/
     status = pjsip_inv_initial_answer(call->inv, rdata, 200, 
 				      NULL, NULL, &tdata);
     if (status != PJ_SUCCESS) {
@@ -682,6 +789,12 @@ static void process_incoming_call(pjsip_rx_data *rdata)
     
 	status = pjsip_inv_send_msg(call->inv, tdata); 
     PJ_ASSERT_ON_FAIL(status == PJ_SUCCESS, return);
+	pj_str_t dst_uri = pj_str (dest_uri);
+	printf ("\n\nCalling %s...\n\n", dest_uri);
+	if (status = make_call (&dst_uri) != PJ_SUCCESS)
+	{
+		pj_perror (5, "process call", status, "make_call");
+	}
 
 
     /* Done */
@@ -722,17 +835,6 @@ static pj_bool_t on_rx_request( pjsip_rx_data *rdata )
 }
 
 
-/* Callback timer to disconnect call (limiting call duration) */
-static void timer_disconnect_call( pj_timer_heap_t *timer_heap,
-				   struct pj_timer_entry *entry)
-{
-    struct call *call = entry->user_data;
-
-    PJ_UNUSED_ARG(timer_heap);
-
-    entry->id = 0;
-    hangup_call(call->index);
-}
 
 
 /* Callback to be called when invite session's state has changed: */
@@ -750,10 +852,7 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 	
 	pj_time_val null_time = {0, 0};
 
-	if (call->d_timer.id != 0) {
-	    pjsip_endpt_cancel_timer(app.sip_endpt, &call->d_timer);
-	    call->d_timer.id = 0;
-	}
+	
 
 	PJ_LOG(3,(THIS_FILE, "Call #%d disconnected. Reason=%d (%.*s)",
 		  call->index,
@@ -793,14 +892,7 @@ static void call_on_state_changed( pjsip_inv_session *inv,
 		  PJ_TIME_VAL_MSEC(t)));
 
 	if (app.duration != 0) {
-	    call->d_timer.id = 1;
-	    call->d_timer.user_data = call;
-	    call->d_timer.cb = &timer_disconnect_call;
-
-	    t.sec = app.duration;
-	    t.msec = 0;
-
-	    pjsip_endpt_schedule_timer(app.sip_endpt, &call->d_timer, &t);
+	    
 	}
 
     } else if (	inv->state == PJSIP_INV_STATE_EARLY ||
@@ -890,7 +982,7 @@ static pj_status_t init_options(int argc, char *argv[])
     }
 
     /* Init defaults */
-    app.max_calls = 1;
+    app.max_calls = 12;
     app.thread_count = 1;
     app.sip_port = 5060;
     app.rtp_start_port = RTP_START_PORT;
@@ -1121,7 +1213,7 @@ static void on_rx_rtp(void *user_data, void *pkt, pj_ssize_t size)
     }
 	//status = pjmedia_transport_send_rtp(strm->transport, pkt, size);
 	//rtp_pkt10 = pkt;
-	memcpy (rtcp_pkt10, pkt, size);
+	//memcpy (rtcp_pkt10, pkt, size);
 	if (status != PJ_SUCCESS)
 	{
 		char stat[1000] = "send_rtp error";
@@ -1129,7 +1221,7 @@ static void on_rx_rtp(void *user_data, void *pkt, pj_ssize_t size)
 		printf ("\n%s\n", stat);
 	}
 
-    /* Decode RTP packet. 
+     //Decode RTP packet. 
     status = pjmedia_rtp_decode_rtp(&strm->in_sess, 
 				    pkt, (int)size, 
 				    &hdr, &payload, &payload_len);
@@ -1138,14 +1230,14 @@ static void on_rx_rtp(void *user_data, void *pkt, pj_ssize_t size)
 	return;
     }
 
-    //PJ_LOG(4,(THIS_FILE, "Rx seq=%d", pj_ntohs(hdr->seq)));
+    PJ_LOG(4,(THIS_FILE, "Rx seq=%d", pj_ntohs(hdr->seq)));
 
-    /* Update the RTCP session. 
+     //Update the RTCP session. 
     pjmedia_rtcp_rx_rtp(&strm->rtcp, pj_ntohs(hdr->seq),
 			pj_ntohl(hdr->ts), payload_len);
 
-    /* Update RTP session 
-    pjmedia_rtp_session_update(&strm->in_sess, hdr, NULL); */
+    // Update RTP session 
+    pjmedia_rtp_session_update(&strm->in_sess, hdr, NULL); 
 
 }
 
@@ -1171,167 +1263,18 @@ static void on_rx_rtcp(void *user_data, void *pkt, pj_ssize_t size)
     /* Update RTCP session */
     //status = pjmedia_transport_send_rtcp(strm->transport, pkt, size);
 	//rtcp_pkt10 = pkt;
-	memcpy (rtcp_pkt10, pkt, size);
+	//memcpy (rtcp_pkt10, pkt, size);
 	if (status != PJ_SUCCESS)
 	{
 		char stat[1000] = "send_rtcp error";
 		pj_strerror(status, stat, 100);
 		printf ("\n%s\n", stat);
 	}
-	//pjmedia_rtcp_rx_rtcp(&strm->rtcp, pkt, size);
+	pjmedia_rtcp_rx_rtcp(&strm->rtcp, pkt, size);
 }
 
 
-/* 
- * Media thread 
- *
- * This is the thread to send and receive both RTP and RTCP packets.
- */
-static int media_thread(void *arg)
-{
-    enum { RTCP_INTERVAL = 5000, RTCP_RAND = 2000 };
-    struct media_stream *strm = arg;
-    char packet[1500];
-    unsigned msec_interval;
-    pj_timestamp freq, next_rtp, next_rtcp;
 
-
-    /* Boost thread priority if necessary */
-    //boost_priority();
-
-    /* Let things settle */
-    pj_thread_sleep(100);
-
-    msec_interval = strm->samples_per_frame * 1000 / strm->clock_rate;
-    pj_get_timestamp_freq(&freq);
-
-    pj_get_timestamp(&next_rtp);
-    next_rtp.u64 += (freq.u64 * msec_interval / 1000);
-
-    next_rtcp = next_rtp;
-    next_rtcp.u64 += (freq.u64 * (RTCP_INTERVAL+(pj_rand()%RTCP_RAND)) / 1000);
-
-
-    while (!strm->thread_quit_flag) {
-	pj_timestamp now, lesser;
-	pj_time_val timeout;
-	pj_bool_t send_rtp, send_rtcp;
-
-	send_rtp = send_rtcp = PJ_FALSE;
-
-	/* Determine how long to sleep */
-	if (next_rtp.u64 < next_rtcp.u64) {
-	    lesser = next_rtp;
-	    send_rtp = PJ_TRUE;
-	} else {
-	    lesser = next_rtcp;
-	    send_rtcp = PJ_TRUE;
-	}
-
-	pj_get_timestamp(&now);
-	if (lesser.u64 <= now.u64) {
-	    timeout.sec = timeout.msec = 0;
-	    //printf("immediate "); fflush(stdout);
-	} else {
-	    pj_uint64_t tick_delay;
-	    tick_delay = lesser.u64 - now.u64;
-	    timeout.sec = 0;
-	    timeout.msec = (pj_uint32_t)(tick_delay * 1000 / freq.u64);
-	    pj_time_val_normalize(&timeout);
-
-	    //printf("%d:%03d ", timeout.sec, timeout.msec); fflush(stdout);
-	}
-
-	/* Wait for next interval */
-	//if (timeout.sec!=0 && timeout.msec!=0) {
-	    pj_thread_sleep(PJ_TIME_VAL_MSEC(timeout));
-	    if (strm->thread_quit_flag)
-		break;
-	//}
-
-	pj_get_timestamp(&now);
-
-	if (send_rtp || next_rtp.u64 <= now.u64) {
-	    /*
-	     * Time to send RTP packet.
-	     */
-	    pj_status_t status;
-	    const void *p_hdr;
-	    const pjmedia_rtp_hdr *hdr;
-	    pj_ssize_t size;
-	    int hdrlen;
-
-	    /* Format RTP header */
-	    status = pjmedia_rtp_encode_rtp( &strm->out_sess, strm->si.tx_pt,
-					     0, /* marker bit */
-					     strm->bytes_per_frame, 
-					     strm->samples_per_frame,
-					     &p_hdr, &hdrlen);
-	    if (status == PJ_SUCCESS) {
-
-		//PJ_LOG(4,(THIS_FILE, "\t\tTx seq=%d", pj_ntohs(hdr->seq)));
-		
-		hdr = (const pjmedia_rtp_hdr*) p_hdr;
-
-		/* Copy RTP header to packet */
-		pj_memcpy(packet, hdr, hdrlen);
-
-		/* Zero the payload */
-		pj_bzero(packet+hdrlen, strm->bytes_per_frame);
-		memset (packet+hdrlen, '8',  strm->bytes_per_frame);
-		/* Send RTP packet */
-		size = hdrlen + strm->bytes_per_frame;
-		status = pjmedia_transport_send_rtp(strm->transport, 
-						    packet, size);
-		if (status != PJ_SUCCESS)
-		{
-		char stat[1000] = "send_rtcp error";
-		pj_strerror(status, stat, 100);
-		printf ("\n%s\n", stat);
-		exit (1);
-		}
-
-	    } else {
-		pj_assert(!"RTP encode() error");
-	    }
-
-	    /* Update RTCP SR */
-	    pjmedia_rtcp_tx_rtp( &strm->rtcp, (pj_uint16_t)strm->bytes_per_frame);
-
-	    /* Schedule next send */
-	    next_rtp.u64 += (msec_interval * freq.u64 / 1000);
-	}
-
-
-	if (send_rtcp || next_rtcp.u64 <= now.u64) {
-	    /*
-	     * Time to send RTCP packet.
-	     */
-	    void *rtcp_pkt;
-	    int rtcp_len;
-	    pj_ssize_t size;
-	    pj_status_t status;
-
-	    /* Build RTCP packet */
-	    pjmedia_rtcp_build_rtcp(&strm->rtcp, &rtcp_pkt, &rtcp_len);
-
-    
-	    /* Send packet */
-	    size = rtcp_len;
-	    status = pjmedia_transport_send_rtcp(strm->transport,
-						 rtcp_pkt, size);
-	    if (status != PJ_SUCCESS) {
-		app_perror(THIS_FILE, "Error sending RTCP packet", status);
-	    }
-	    
-	    /* Schedule next send */
-    	    next_rtcp.u64 += (freq.u64 * (RTCP_INTERVAL+(pj_rand()%RTCP_RAND)) /
-			      1000);
-	}
-    }
-
-    return 0;
-}
 
 
 /* Callback to be called when SDP negotiation is done in the call: */
@@ -1454,6 +1397,261 @@ static void destroy_call_media(unsigned call_index)
 }
 
  
+
+
+static void hangup_call(unsigned index)
+{
+    pjsip_tx_data *tdata;
+    pj_status_t status;
+
+    if (app.call[index].inv == NULL)
+	return;
+
+    status = pjsip_inv_end_session(app.call[index].inv, 603, NULL, &tdata);
+    if (status==PJ_SUCCESS && tdata!=NULL)
+	pjsip_inv_send_msg(app.call[index].inv, tdata);
+}
+
+static void hangup_all_calls()
+{
+    unsigned i;
+    for (i=0; i<app.max_calls; ++i) {
+	if (!app.call[i].inv)
+	    continue;
+	hangup_call(i);
+	pj_thread_sleep(app.call_gap);
+    }
+    
+    /* Wait until all calls are terminated */
+    for (i=0; i<app.max_calls; ++i) {
+	while (app.call[i].inv)
+	    pj_thread_sleep(10);
+    }
+}
+
+static pj_bool_t simple_input(const char *title, char *buf, pj_size_t len)
+{
+    char *p;
+
+    printf("%s (empty to cancel): ", title); fflush(stdout);
+    if (fgets(buf, (int)len, stdin) == NULL)
+	return PJ_FALSE;
+
+    /* Remove trailing newlines. */
+    for (p=buf; ; ++p) {
+	if (*p=='\r' || *p=='\n') *p='\0';
+	else if (!*p) break;
+    }
+
+    if (!*buf)
+	return PJ_FALSE;
+    
+    return PJ_TRUE;
+}
+
+
+static const char *MENU =
+"\n"
+"Enter menu character:\n"
+"  s    Summary\n"
+"  l    List all calls\n"
+"  h    Hangup a call\n"
+"  H    Hangup all calls\n"
+"  q    Quit\n"
+"\n";
+
+
+/* Main screen menu */
+static void console_main()
+{
+    char input1[10];
+    unsigned i;
+
+    printf("%s", MENU);
+
+    for (;;) {
+	printf(">>> "); fflush(stdout);
+	if (fgets(input1, sizeof(input1), stdin) == NULL) {
+	    puts("EOF while reading stdin, will quit now..");
+	    break;
+	}
+
+	switch (input1[0]) {
+
+	case 's':
+	    print_avg_stat();
+	    break;
+
+	case 'l':
+	    list_calls();
+	    break;
+
+	case 'h':
+	    if (!simple_input("Call number to hangup", input1, sizeof(input1)))
+		break;
+
+	    i = atoi(input1);
+	    hangup_call(i);
+	    break;
+
+	case 'H':
+	    hangup_all_calls();
+	    break;
+
+	case 'q':
+	    goto on_exit;
+
+	default:
+	    puts("Invalid command");
+	    printf("%s", MENU);
+	    break;
+	}
+
+	fflush(stdout);
+    }
+
+on_exit:
+    hangup_all_calls();
+}
+
+
+/*****************************************************************************
+ * Below is a simple module to log all incoming and outgoing SIP messages
+ */
+
+
+/* Notification on incoming messages */
+
+
+
+/*
+ * main()
+ */
+int main(int argc, char *argv[])
+{
+    unsigned i;
+    pj_status_t status;
+	pj_log_set_level (5);
+
+    /* Must init PJLIB first */
+    status = pj_init();
+    if (status != PJ_SUCCESS)
+	return 1;
+
+    /* Get command line options */
+    status = init_options(argc, argv);
+    if (status != PJ_SUCCESS)
+	return 1;
+
+    /* Verify options: */
+
+    /* Auto-quit can not be specified for UAS */
+    if (app.auto_quit && app.uri_to_call.slen == 0) {
+	printf("Error: --auto-quit option only valid for outgoing "
+	       "mode (UAC) only\n");
+	return 1;
+    }
+
+    /* Init logging */
+    status = app_logging_init();
+    if (status != PJ_SUCCESS)
+	return 1;
+
+    /* Init SIP etc */
+    status = init_sip();
+    if (status != PJ_SUCCESS) {
+	app_perror(THIS_FILE, "Initialization has failed", status);
+	destroy_sip();
+	return 1;
+    }
+
+    /* Register module to log incoming/outgoing messages */
+    pjsip_endpt_register_module(app.sip_endpt, &msg_logger);
+
+    /* Init media */
+    status = init_media();
+    if (status != PJ_SUCCESS) {
+	app_perror(THIS_FILE, "Media initialization failed", status);
+	destroy_sip();
+	return 1;
+    }
+
+    /* Start worker threads */
+
+    for (i=0; i<app.thread_count; ++i) {
+	pj_thread_create( app.pool, "app", &sip_worker_thread, NULL,
+			  0, 0, &app.sip_thread[i]);
+    }
+
+
+    /* If URL is specified, then make call immediately */
+    if (app.uri_to_call.slen) {
+	PJ_LOG(3,(THIS_FILE, "Making %d calls to %s..", app.max_calls,
+		  app.uri_to_call.ptr));
+
+	for (i=0; i<app.max_calls; ++i) {
+	    status = make_call(&app.uri_to_call);
+		
+	    if (status != PJ_SUCCESS) {
+		app_perror(THIS_FILE, "Error making call", status);
+		break;
+	    }
+	    pj_thread_sleep(app.call_gap);
+	}
+
+	if (app.auto_quit) {
+	    /* Wait for calls to complete */
+	    while (app.uac_calls < app.max_calls)
+		pj_thread_sleep(100);
+	    pj_thread_sleep(200);
+	} else {
+
+	    /* Start user interface loop */
+	    console_main();
+
+	}
+
+    } else {
+
+	PJ_LOG(3,(THIS_FILE, "Ready for incoming calls (max=%d)", 
+		  app.max_calls));
+		  pj_str_t str = pj_str("sip:vedro@192.168.0.3:15060");
+		  //make_call (&str);
+
+
+	/* Start user interface loop */
+	console_main();
+
+    }
+
+
+    
+    /* Shutting down... */
+    destroy_sip();
+    destroy_media();
+
+    if (app.pool) {
+	pj_pool_release(app.pool);
+	app.pool = NULL;
+	pj_caching_pool_destroy(&app.cp);
+    }
+
+    app_logging_shutdown();
+
+    /* Shutdown PJLIB */
+    pj_shutdown();
+
+    return 0;
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////// LOGGERS ////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 /*****************************************************************************
  * USER INTERFACE STUFFS
  */
@@ -1973,129 +2171,6 @@ static void list_calls()
     }
 }
 
-static void hangup_call(unsigned index)
-{
-    pjsip_tx_data *tdata;
-    pj_status_t status;
-
-    if (app.call[index].inv == NULL)
-	return;
-
-    status = pjsip_inv_end_session(app.call[index].inv, 603, NULL, &tdata);
-    if (status==PJ_SUCCESS && tdata!=NULL)
-	pjsip_inv_send_msg(app.call[index].inv, tdata);
-}
-
-static void hangup_all_calls()
-{
-    unsigned i;
-    for (i=0; i<app.max_calls; ++i) {
-	if (!app.call[i].inv)
-	    continue;
-	hangup_call(i);
-	pj_thread_sleep(app.call_gap);
-    }
-    
-    /* Wait until all calls are terminated */
-    for (i=0; i<app.max_calls; ++i) {
-	while (app.call[i].inv)
-	    pj_thread_sleep(10);
-    }
-}
-
-static pj_bool_t simple_input(const char *title, char *buf, pj_size_t len)
-{
-    char *p;
-
-    printf("%s (empty to cancel): ", title); fflush(stdout);
-    if (fgets(buf, (int)len, stdin) == NULL)
-	return PJ_FALSE;
-
-    /* Remove trailing newlines. */
-    for (p=buf; ; ++p) {
-	if (*p=='\r' || *p=='\n') *p='\0';
-	else if (!*p) break;
-    }
-
-    if (!*buf)
-	return PJ_FALSE;
-    
-    return PJ_TRUE;
-}
-
-
-static const char *MENU =
-"\n"
-"Enter menu character:\n"
-"  s    Summary\n"
-"  l    List all calls\n"
-"  h    Hangup a call\n"
-"  H    Hangup all calls\n"
-"  q    Quit\n"
-"\n";
-
-
-/* Main screen menu */
-static void console_main()
-{
-    char input1[10];
-    unsigned i;
-
-    printf("%s", MENU);
-
-    for (;;) {
-	printf(">>> "); fflush(stdout);
-	if (fgets(input1, sizeof(input1), stdin) == NULL) {
-	    puts("EOF while reading stdin, will quit now..");
-	    break;
-	}
-
-	switch (input1[0]) {
-
-	case 's':
-	    print_avg_stat();
-		
-	    break;
-
-	case 'l':
-	    list_calls();
-	    break;
-
-	case 'h':
-	    if (!simple_input("Call number to hangup", input1, sizeof(input1)))
-		break;
-
-	    i = atoi(input1);
-	    hangup_call(i);
-	    break;
-
-	case 'H':
-	    hangup_all_calls();
-	    break;
-
-	case 'q':
-	    goto on_exit;
-
-	default:
-	    puts("Invalid command");
-	    printf("%s", MENU);
-	    break;
-	}
-
-	fflush(stdout);
-    }
-
-on_exit:
-    hangup_all_calls();
-}
-
-
-/*****************************************************************************
- * Below is a simple module to log all incoming and outgoing SIP messages
- */
-
-
-/* Notification on incoming messages */
 static pj_bool_t logger_on_rx_msg(pjsip_rx_data *rdata)
 {
     PJ_LOG(4,(THIS_FILE, "RX %d bytes %s from %s:%d:\n"
@@ -2134,24 +2209,7 @@ static pj_status_t logger_on_tx_msg(pjsip_tx_data *tdata)
     return PJ_SUCCESS;
 }
 
-/* The module instance. */
-static pjsip_module msg_logger = 
-{
-    NULL, NULL,				/* prev, next.		*/
-    { "mod-siprtp-log", 14 },		/* Name.		*/
-    -1,					/* Id			*/
-    PJSIP_MOD_PRIORITY_TRANSPORT_LAYER-1,/* Priority	        */
-    NULL,				/* load()		*/
-    NULL,				/* start()		*/
-    NULL,				/* stop()		*/
-    NULL,				/* unload()		*/
-    &logger_on_rx_msg,			/* on_rx_request()	*/
-    &logger_on_rx_msg,			/* on_rx_response()	*/
-    &logger_on_tx_msg,			/* on_tx_request.	*/
-    &logger_on_tx_msg,			/* on_tx_response()	*/
-    NULL,				/* on_tsx_state()	*/
 
-};
 
 
 
@@ -2207,125 +2265,6 @@ void app_logging_shutdown(void)
 	fclose(log_file);
 	log_file = NULL;
     }
-}
-
-
-/*
- * main()
- */
-int main(int argc, char *argv[])
-{
-    unsigned i;
-    pj_status_t status;
-	pj_log_set_level (5);
-
-    /* Must init PJLIB first */
-    status = pj_init();
-    if (status != PJ_SUCCESS)
-	return 1;
-
-    /* Get command line options */
-    status = init_options(argc, argv);
-    if (status != PJ_SUCCESS)
-	return 1;
-
-    /* Verify options: */
-
-    /* Auto-quit can not be specified for UAS */
-    if (app.auto_quit && app.uri_to_call.slen == 0) {
-	printf("Error: --auto-quit option only valid for outgoing "
-	       "mode (UAC) only\n");
-	return 1;
-    }
-
-    /* Init logging */
-    status = app_logging_init();
-    if (status != PJ_SUCCESS)
-	return 1;
-
-    /* Init SIP etc */
-    status = init_sip();
-    if (status != PJ_SUCCESS) {
-	app_perror(THIS_FILE, "Initialization has failed", status);
-	destroy_sip();
-	return 1;
-    }
-
-    /* Register module to log incoming/outgoing messages */
-    pjsip_endpt_register_module(app.sip_endpt, &msg_logger);
-
-    /* Init media */
-    status = init_media();
-    if (status != PJ_SUCCESS) {
-	app_perror(THIS_FILE, "Media initialization failed", status);
-	destroy_sip();
-	return 1;
-    }
-
-    /* Start worker threads */
-
-    for (i=0; i<app.thread_count; ++i) {
-	pj_thread_create( app.pool, "app", &sip_worker_thread, NULL,
-			  0, 0, &app.sip_thread[i]);
-    }
-
-
-    /* If URL is specified, then make call immediately */
-    if (app.uri_to_call.slen) {
-	PJ_LOG(3,(THIS_FILE, "Making %d calls to %s..", app.max_calls,
-		  app.uri_to_call.ptr));
-
-	for (i=0; i<app.max_calls; ++i) {
-	    status = make_call(&app.uri_to_call);
-		
-	    if (status != PJ_SUCCESS) {
-		app_perror(THIS_FILE, "Error making call", status);
-		break;
-	    }
-	    pj_thread_sleep(app.call_gap);
-	}
-
-	if (app.auto_quit) {
-	    /* Wait for calls to complete */
-	    while (app.uac_calls < app.max_calls)
-		pj_thread_sleep(100);
-	    pj_thread_sleep(200);
-	} else {
-
-	    /* Start user interface loop */
-	    console_main();
-
-	}
-
-    } else {
-
-	PJ_LOG(3,(THIS_FILE, "Ready for incoming calls (max=%d)", 
-		  app.max_calls));
-
-
-	/* Start user interface loop */
-	console_main();
-
-    }
-
-
-    
-    /* Shutting down... */
-    destroy_sip();
-    destroy_media();
-
-    if (app.pool) {
-	pj_pool_release(app.pool);
-	app.pool = NULL;
-	pj_caching_pool_destroy(&app.cp);
-    }
-
-    app_logging_shutdown();
-
-    /* Shutdown PJLIB */
-    pj_shutdown();
-
-    return 0;
 }
 
 /*static void boost_priority(void)
@@ -2387,4 +2326,153 @@ int main(int argc, char *argv[])
     PJ_LOG(4, (THIS_FILE, "New thread policy=%d, priority=%d",
 	      policy, tp.sched_priority));
 } */
+/* 
+ * Media thread 
+ *
+ * This is the thread to send and receive both RTP and RTCP packets.
+ */
+static int media_thread(void *arg)
+{
+    enum { RTCP_INTERVAL = 5000, RTCP_RAND = 2000 };
+    struct media_stream *strm = arg;
+    char packet[1500];
+    unsigned msec_interval;
+    pj_timestamp freq, next_rtp, next_rtcp;
 
+
+    /* Boost thread priority if necessary */
+    //boost_priority();
+
+    /* Let things settle */
+    pj_thread_sleep(100);
+
+    msec_interval = strm->samples_per_frame * 1000 / strm->clock_rate;
+    pj_get_timestamp_freq(&freq);
+
+    pj_get_timestamp(&next_rtp);
+    next_rtp.u64 += (freq.u64 * msec_interval / 1000);
+
+    next_rtcp = next_rtp;
+    next_rtcp.u64 += (freq.u64 * (RTCP_INTERVAL+(pj_rand()%RTCP_RAND)) / 1000);
+
+
+    while (!strm->thread_quit_flag) {
+	pj_timestamp now, lesser;
+	pj_time_val timeout;
+	pj_bool_t send_rtp, send_rtcp;
+
+	send_rtp = send_rtcp = PJ_FALSE;
+
+	/* Determine how long to sleep */
+	if (next_rtp.u64 < next_rtcp.u64) {
+	    lesser = next_rtp;
+	    send_rtp = PJ_TRUE;
+	} else {
+	    lesser = next_rtcp;
+	    send_rtcp = PJ_TRUE;
+	}
+
+	pj_get_timestamp(&now);
+	if (lesser.u64 <= now.u64) {
+	    timeout.sec = timeout.msec = 0;
+	    //printf("immediate "); fflush(stdout);
+	} else {
+	    pj_uint64_t tick_delay;
+	    tick_delay = lesser.u64 - now.u64;
+	    timeout.sec = 0;
+	    timeout.msec = (pj_uint32_t)(tick_delay * 1000 / freq.u64);
+	    pj_time_val_normalize(&timeout);
+
+	    //printf("%d:%03d ", timeout.sec, timeout.msec); fflush(stdout);
+	}
+
+	/* Wait for next interval */
+	//if (timeout.sec!=0 && timeout.msec!=0) {
+	    pj_thread_sleep(PJ_TIME_VAL_MSEC(timeout));
+	    if (strm->thread_quit_flag)
+		break;
+	//}
+
+	pj_get_timestamp(&now);
+
+	if (send_rtp || next_rtp.u64 <= now.u64) {
+	    /*
+	     * Time to send RTP packet.
+	     */
+	    pj_status_t status;
+	    const void *p_hdr;
+	    const pjmedia_rtp_hdr *hdr;
+	    pj_ssize_t size;
+	    int hdrlen;
+
+	    /* Format RTP header */
+	    status = pjmedia_rtp_encode_rtp( &strm->out_sess, strm->si.tx_pt,
+					     0, /* marker bit */
+					     strm->bytes_per_frame, 
+					     strm->samples_per_frame,
+					     &p_hdr, &hdrlen);
+	    if (status == PJ_SUCCESS) {
+
+		//PJ_LOG(4,(THIS_FILE, "\t\tTx seq=%d", pj_ntohs(hdr->seq)));
+		
+		hdr = (const pjmedia_rtp_hdr*) p_hdr;
+
+		/* Copy RTP header to packet */
+		pj_memcpy(packet, hdr, hdrlen);
+
+		/* Zero the payload */
+		pj_bzero(packet+hdrlen, strm->bytes_per_frame);
+		memset (packet+hdrlen, '8',  strm->bytes_per_frame);
+		/* Send RTP packet */
+		size = hdrlen + strm->bytes_per_frame;
+		status = pjmedia_transport_send_rtp(strm->transport, 
+						    packet, size);
+		if (status != PJ_SUCCESS)
+		{
+		char stat[1000] = "send_rtcp error";
+		pj_strerror(status, stat, 100);
+		printf ("\n%s\n", stat);
+		exit (1);
+		}
+
+	    } else {
+		pj_assert(!"RTP encode() error");
+	    }
+
+	    /* Update RTCP SR */
+	    pjmedia_rtcp_tx_rtp( &strm->rtcp, (pj_uint16_t)strm->bytes_per_frame);
+
+	    /* Schedule next send */
+	    next_rtp.u64 += (msec_interval * freq.u64 / 1000);
+	}
+
+
+	if (send_rtcp || next_rtcp.u64 <= now.u64) {
+	    /*
+	     * Time to send RTCP packet.
+	     */
+	    void *rtcp_pkt;
+	    int rtcp_len;
+	    pj_ssize_t size;
+	    pj_status_t status;
+
+	    /* Build RTCP packet */
+	    pjmedia_rtcp_build_rtcp(&strm->rtcp, &rtcp_pkt, &rtcp_len);
+
+    
+	    /* Send packet */
+	    size = rtcp_len;
+	    status = pjmedia_transport_send_rtcp(strm->transport,
+						 rtcp_pkt, size);
+	    if (status != PJ_SUCCESS) {
+		app_perror(THIS_FILE, "Error sending RTCP packet", status);
+	    }
+	    
+	    /* Schedule next send */
+    	    next_rtcp.u64 += (freq.u64 * (RTCP_INTERVAL+(pj_rand()%RTCP_RAND)) /
+			      1000);
+	}
+    }
+
+    return 0;
+}

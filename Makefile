@@ -46,7 +46,7 @@ task4-arm:
 
 
 task3-test:
-	sipp $(IP) -s $(TEL)  -d $(CALL_LENGTH) -l 20 -aa -mi $(LOCAL_IP) -rtp_echo -nd -r $(CALLS) -rp $(PER_TIME) 
+	sipp $(IP):7060 -s $(TEL)  -d $(CALL_LENGTH) -l 20 -aa -mi $(LOCAL_IP) -rtp_echo -nd -r $(CALLS) -rp $(PER_TIME) 
 .PHONY: clean
 # make task3-test CALLS=1 PER_TIME=1500 IP=127.0.0.1 LOCAL_IP=127.0.0.1 CALL_LENGTH=30s
 clean:
