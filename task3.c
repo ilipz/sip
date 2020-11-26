@@ -1429,6 +1429,7 @@ void free_slot (slot_t *slot)
 
     if (slot->media_stream)
     {
+        pjmedia_transport_media_stop (slot->media_transport);
         pjmedia_stream_destroy (slot->media_stream);
         if (PJ_SUCCESS != status)
         {
