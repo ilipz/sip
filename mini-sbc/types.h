@@ -10,6 +10,7 @@
 #include <pjlib.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include "juncs/junc_t.h"
 
 #define PJ_LOG_ERROR    "!!! ERROR: " 
 #define APPNAME         "MINI-SBC: "
@@ -23,6 +24,12 @@ struct codec
     unsigned	ptime;
     char*	description;
 };
+
+typedef struct numrecord
+{
+	char num[8];
+	char addr[32];
+} numrecord_t;
 
 struct global_var
 {
@@ -60,10 +67,6 @@ struct global_var
 
 };
 
-typedef struct numrecord
-{
-	char num[8];
-	char addr[32];
-} numrecord_t;
+
 
 #endif

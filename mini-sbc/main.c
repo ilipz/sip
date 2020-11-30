@@ -69,5 +69,7 @@ int main (int argc, char **argv)
         while (g.pause) sleep(1); 
     }
 
+    // Release resources
+
     return 0;
 }

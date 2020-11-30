@@ -4,7 +4,11 @@ void free_junction (junction_t *j)
 {
     if (j->state == DISABLED)
         return;
-    pjmedia_master_port_stop (j->mp);
+
+    pjmedia_master_port_stop (j->mp_in2out);
+    pjmedia_master_port_stop (j->mp_out2in);
+    pj_thread_destroy (j->controller_thread);
+    // if failed then disable junction
     free_leg (&j->out_leg);
     free_leg (&j->in_leg);
     j->state = READY;

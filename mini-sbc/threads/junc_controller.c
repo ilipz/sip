@@ -14,22 +14,22 @@ int junc_controller (void *p)
             pjmedia_master_port_set_uport (j->mp_out_in, j->out_leg.current.stream_port);
             pjmedia_master_port_set_dport (j->mp_in_out, j->in_leg.current.stream_port);
             pjmedia_master_port_start (j->mp_in_out);
-            break;
+            return 0;
         }
 
         switch (j->in_leg.current.inv->state)
         {
             case PJSIP_INV_STATE_DISCONNECTED:
             case PJSIP_INV_STATE_NULL:
-                break;
-            default: continue;
+                return 0;
+            default: break;
         }
 
         switch (j->out_leg.current.inv->state)
         {
             case PJSIP_INV_STATE_DISCONNECTED:
             case PJSIP_INV_STATE_NULL:
-                break;
+                return 0;
             default: continue;
         }
         if (g.to_quit)

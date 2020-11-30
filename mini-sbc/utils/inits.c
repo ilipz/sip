@@ -101,7 +101,7 @@ void init_sip()
 	/* Init the callback for INVITE session: */
 	pj_bzero(&inv_cb, sizeof(inv_cb));
 	inv_cb.on_state_changed = &on_state_changed;
-	inv_cb.on_new_session = &on_forked;
+	//inv_cb.on_new_session = &on_forked;
 	inv_cb.on_media_update = &on_media_update;
 	//inv_cb.on_send_ack = &on_send_ack;
 
@@ -140,21 +140,6 @@ pj_bool_t init_media()
 void init_juncs ()
 {
     int dis_count=0;
-    for (int i=0; i<10; i++)
-    {
-        junction_t *j = &g.junctions[i];
-        j->index = i;
-        pj_mutex_create (g.pool, "mutex", PJ_MUTEX_SIMPLE, &j->mutex);
-        j->state = READY;
-        
-        j->out_leg.type = OUT;
-        j->out_leg.current.sdp_neg_done = PJ_FALSE;
-
-        j->in_leg.type = IN;
-        j->in_leg.reverse = &j->out_leg;
-        j->in_leg.current.sdp_neg_done = PJ_FALSE;
-
-    }
     /////
     pj_status_t status;
     pj_uint16_t rtp_port = (pj_uint16_t)(g.rtp_start_port & 0xFFFE);
@@ -168,11 +153,13 @@ void init_juncs ()
         nullize_leg (&j->in_leg);
         j->in_leg.type = IN;
         j->in_leg.reverse = &j->out_leg;
+        j->in_leg.junction = j;
         
 
         nullize_leg (&j->out_leg);
         j->out_leg.type = OUT;
         j->out_leg.reverse = &j->in_leg;
+        j->out_leg.junction = j;
         
         for (int retry=0; retry<=1500; retry++)
         {

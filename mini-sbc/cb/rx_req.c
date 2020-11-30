@@ -2,7 +2,18 @@
 
 pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 {
+    unsigned i, options;
+    
+    pjsip_dialog *dlg;
+    pjmedia_sdp_session *sdp;
+    pjsip_tx_data *tdata;
+    pj_status_t status;
+	pj_str_t reason;
+    
+    // Check validity
+
     /* Ignore strandled ACKs (must not send respone */
+    pjsip_endpt_respond_stateless(g.sip_endpt, rdata, 100, NULL, NULL, NULL);
     if (rdata->msg_info.msg->line.req.method.id == PJSIP_ACK_METHOD)
 	return PJ_FALSE;
 
@@ -15,39 +26,6 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	return PJ_TRUE;
     }
 
-    unsigned i, options;
-    struct call *call;
-    pjsip_dialog *dlg;
-    pjmedia_sdp_session *sdp;
-    pjsip_tx_data *tdata;
-    pj_status_t status;
-	pj_str_t reason;
-
-
-
-    junction_t *j=NULL;
-
-
-    // Find unused junction
-
-    for (int i=0; i<10; i++)
-    {
-        if (g.junctions[i].state == READY)
-            if ( PJ_SUCCESS == pj_mutex_trylock(g.junctions[i].mutex) )
-            {
-                j = &g.junctions[i];
-                j->state = BUSY;
-                pj_mutex_unlock (j->mutex);
-            }
-    }
-
-    if (j == NULL)
-    {
-        PJ_LOG (5, ("on_rx_request", "Cann't find free junction"));
-        return PJ_FALSE;
-    }
-
-    
 
     /* Verify that we can handle the request. */
     options = 0;
@@ -74,22 +52,43 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	return;
     }
 
-	pjsip_sip_uri *sip_uri = (pjsip_sip_uri*)pjsip_uri_get_uri(rdata->msg_info.to->uri);
+    // Find in adddres book
+
+    pjsip_sip_uri *sip_uri = (pjsip_sip_uri*)pjsip_uri_get_uri(rdata->msg_info.to->uri);
 	char telephone[64] =  {0};
     char *dest;
 	strncpy (telephone, sip_uri->user.ptr, sip_uri->user.slen);
 
-    numrecord_t *tel;
-    num_addr (tel);
+    numrecord_t *tel = get_numrecord (telephone);
 	if (tel == NULL)
 	{
 		pjsip_endpt_respond_stateless(g.sip_endpt, rdata, 404, NULL, NULL, NULL);
 		return;
 	}
 
-	
+    
 
-	
+
+    // Find available junction
+
+    junction_t *j=NULL;
+    for (int i=0; i<10; i++)
+    {
+        if (g.junctions[i].state == READY)
+            if ( PJ_SUCCESS == pj_mutex_trylock(g.junctions[i].mutex) )
+            {
+                j = &g.junctions[i];
+                j->state = BUSY;
+                pj_mutex_unlock (j->mutex);
+            }
+    }
+
+    if (j == NULL)
+    {
+        PJ_LOG (5, ("on_rx_request", "Cann't find free junction"));
+        return PJ_FALSE;
+    }
+
 
 	
     /* Create UAS dialog */
@@ -124,10 +123,12 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	pjsip_dlg_dec_lock(dlg);
 	return;
     }
-    pjsip_inv_initial_answer(inv, rdata, 100, 
-				      NULL, NULL, &tdata);
+    pjsip_inv_initial_answer(inv, rdata, 180, 
+				      NULL, sdp, &tdata);
 	pjsip_inv_send_msg(inv, tdata); 
     
+    // TODO: Here connect to ringback tonegen
+
     /* Invite session has been created, decrement & release dialog lock */
     pjsip_dlg_dec_lock(dlg);	
 
@@ -138,16 +139,17 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     //pj_gettimeofday(&call->start_time);
 
 
-	pjsip_inv_answer(inv, 180, NULL, NULL, &tdata);
+	//pjsip_inv_answer(inv, 180, NULL, sdp, &tdata);
 	pjsip_inv_send_msg(inv, tdata); 
     /* Create 183 response .*/
     status = pjsip_inv_answer(inv, 183, NULL, NULL, &tdata);
-    if (status != PJ_SUCCESS) {
-	status = pjsip_inv_answer(inv, PJSIP_SC_NOT_ACCEPTABLE, NULL, NULL, &tdata);
-	if (status == PJ_SUCCESS)
-	    pjsip_inv_send_msg(inv, tdata); 
-	else
-	    pjsip_inv_terminate(inv, 500, PJ_FALSE);
+    if (status != PJ_SUCCESS) 
+    {
+	    status = pjsip_inv_answer(inv, PJSIP_SC_NOT_ACCEPTABLE, NULL, NULL, &tdata);
+	    if (status == PJ_SUCCESS)
+	        pjsip_inv_send_msg(inv, tdata); 
+	    else
+	        pjsip_inv_terminate(inv, 500, PJ_FALSE);
 	return;
     }
 
@@ -155,9 +157,19 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     /* Send the 200 response. */
 
 	// Here need sync both shoulders before
-    make_call (tel, &j->out_leg);
+    if (make_call (tel, &j->out_leg) == PJ_TRUE)
+    {
+        pj_thread_create (g.pool, "junc_controller", junc_controller, j, 0, 0, &j->controller_thread);
+    }
+    else
+    {
+        pjsip_inv_terminate(inv, 500, PJ_FALSE);
+        j->state = DISABLED
+    }
+    
+
     // if failed then disable junc
-    // start connector thread
+    
    
    
 }

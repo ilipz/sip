@@ -21,7 +21,8 @@ typedef struct leg
         } current;
     
     pjmedia_transport   *media_transport;
-    leg_t          *reverse;    
+    struct leg         *reverse;
+    void  *junction;
     enum leg_type {IN=0, OUT=1} type;
 } leg_t;
 
@@ -29,7 +30,8 @@ typedef struct junction
 {
     leg_t  in_leg;
     leg_t  out_leg;
-    pjmedia_master_port *mp_in_out, *mp_out_in;
+    pjmedia_master_port *mp_in2out, *mp_out2in;
+    pj_thread_t *controller_thread;
     enum state_t {BUSY=0, READY, DISABLED} state;
     pj_mutex_t  *mutex;
     int index; 
