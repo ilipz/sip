@@ -84,15 +84,33 @@ void init_sip()
 	PJ_LOG(3,(APPNAME, "SIP UDP listening on %.*s:%d",
 		  (int)tp->local_name.host.slen, tp->local_name.host.ptr,
 		  tp->local_name.port));
-    }
+    g.local_addr = tp->local_name.host;
+    /*//pj_str_t pjstr = {tp->local_name.slen, tp->local_name.host.ptr};
+    const pj_str_t *hostname;
+	pj_sockaddr_in tmp_addr;
+    char ip_addr[64];
+	hostname = pj_gethostname();
+	pj_sockaddr_in_init(&tmp_addr, hostname, 0);
+	pj_inet_ntop(pj_AF_INET(), &tmp_addr.sin_addr, ip_addr,
+        	     sizeof(ip_addr));
+    //g.local_addr = pj_str(ip_addr);
+    printf ("\n\n\n%s\n\n\n\n", ip_addr); */
+    char local_uri[64];
+    pj_ansi_sprintf( local_uri, "sip:%s:%d", g.local_addr.ptr, g.sip_port);
+    
+    memcpy (g.local_contact_s, local_uri, sizeof(local_uri));
+    g.local_contact = pj_str (g.local_contact_s);
+    g.local_uri = g.local_contact;
 
+    printf ("\n\n\ncontact: %s\n\n\n", g.local_contact.ptr);
+    }
     /* 
      * Init transaction layer.
      * This will create/initialize transaction hash tables etc.
      */
     status = pjsip_tsx_layer_init_module(g.sip_endpt);
     if (status != PJ_SUCCESS)
-        exit (80);
+        exit (1);
 
     /*  Initialize UA layer. */
     status = pjsip_ua_init_module( g.sip_endpt, NULL );
@@ -133,7 +151,11 @@ void init_sip()
     status = pjsip_endpt_register_module(g.sip_endpt, &g.mod_logger);
     if (status != PJ_SUCCESS)
         exit (80);
+    
+    
+    
     /* Done */
+
     
 }
 
@@ -157,6 +179,7 @@ pj_bool_t init_media()
 
 void init_juncs ()
 {
+    //pj_mutex_create
     int dis_count=0;
     const char *THIS_FUNCTION = "init_juncs()";
     /////
@@ -182,7 +205,7 @@ void init_juncs ()
         
         for (int retry=0; retry<=1500; retry++)
         {
-            status = pjmedia_transport_udp_create2 (g.media_endpt, "in_leg", &g.local_addr, rtp_port++, 0, &j->in_leg.media_transport);
+            status = pjmedia_transport_udp_create2 (g.media_endpt, "in_leg", NULL, rtp_port++, 0, &j->in_leg.media_transport);
             if (PJ_SUCCESS == status)
             {
                 //pj_perror (5, "init media()", status, "pjmedia_transport_udp_create2");
@@ -216,6 +239,9 @@ void init_juncs ()
             continue;
         }
         
+        pj_mutex_create (g.pool, "mutex", PJ_MUTEX_SIMPLE, &j->mutex);
+        
         
     }
+    
 }

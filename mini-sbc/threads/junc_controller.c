@@ -32,7 +32,7 @@ int junc_controller (void *p)
             case PJSIP_INV_STATE_DISCONNECTED:
             case PJSIP_INV_STATE_NULL:
                 return 0;
-            default: continue;
+            default: break;
         }
         if (g.to_quit)
             return 0;

@@ -78,7 +78,7 @@ struct global_var
     pj_str_t		 local_uri;
     pj_str_t		 local_contact;
     pj_str_t		 local_addr;
-
+    char             local_contact_s[64];
     pj_uint16_t     sip_port;
     pj_uint16_t     rtp_port;
 

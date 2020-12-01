@@ -12,7 +12,7 @@ numrecord_t *get_numrecord (char *num)
 pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
 {
     // TODO: here if any function fail then make junction disabled
-    char dest_uri;
+    char dest_uri[64];
     sprintf (dest_uri, "sip:%s@%s", tel->num, tel->addr);
     pj_str_t dst_uri = pj_str (dest_uri);
     unsigned i;
@@ -37,7 +37,7 @@ pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
     create_sdp( dlg->pool, l, &sdp);
 
     /* Create the INVITE session. */
-    status = pjsip_inv_create_uac( dlg, sdp, 0, &l->current.inv);
+    status = pjsip_inv_create_uac( dlg, NULL, 0, &l->current.inv);
     if (status != PJ_SUCCESS) 
     {
 	    pjsip_dlg_terminate(dlg);
@@ -79,6 +79,7 @@ pj_status_t create_sdp( pj_pool_t *pool,
 			       leg_t *l,
 			       pjmedia_sdp_session **p_sdp)
 {
+    pj_status_t status;
     pj_time_val tv;
     pjmedia_sdp_session *sdp;
     pjmedia_sdp_media *m;
@@ -91,8 +92,9 @@ pj_status_t create_sdp( pj_pool_t *pool,
 
     /* Get transport info */
     pjmedia_transport_info_init(&tpinfo);
-    pjmedia_transport_get_info(l->media_transport, &tpinfo);
-
+    status = pjmedia_transport_get_info(l->media_transport, &tpinfo);
+    if (status != PJ_SUCCESS)
+        pj_perror (5, "create sdp", status, "axaxa");
     /* Create and initialize basic SDP session */
     sdp = pj_pool_zalloc (pool, sizeof(pjmedia_sdp_session));
 
@@ -144,7 +146,9 @@ pj_status_t create_sdp( pj_pool_t *pool,
 	rtpmap.enc_name = pj_str(g.audio_codec.name);
 	rtpmap.param.slen = 0;
 
-	pjmedia_sdp_rtpmap_to_attr(pool, &rtpmap, &attr);
+	status = pjmedia_sdp_rtpmap_to_attr(pool, &rtpmap, &attr);
+    if (status != PJ_SUCCESS)
+        pj_perror (5, "create sdp", status, "axaxa");
 	m->attr[m->attr_count++] = attr;
     }
 

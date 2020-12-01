@@ -74,12 +74,13 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 
 
     // Find available junction
-
+    
+    status = PJ_SUCCESS;
     junction_t *j=NULL;
     for (int i=0; i<10; i++)
     {
         if (g.junctions[i].state == READY)
-            if ( PJ_SUCCESS == pj_mutex_trylock(g.junctions[i].mutex) )
+            if ( status = pj_mutex_trylock(g.junctions[i].mutex) == PJ_SUCCESS   )
             {
                 j = &g.junctions[i];
                 j->state = BUSY;
@@ -91,12 +92,15 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     if (j == NULL)
     {
         PJ_LOG (5, ("on_rx_request", "Cann't find free junction"));
+        pj_perror (5, "mutex", status, "hi");
         return PJ_FALSE;
     }
 
 
 	
     /* Create UAS dialog */
+    g.local_contact.ptr[g.local_contact.slen] = '\0';
+    printf ("\n\n\nUAS:%s\n\n\n", g.local_contact.ptr);
     status = pjsip_dlg_create_uas_and_inc_lock( pjsip_ua_instance(), rdata,
 						&g.local_contact, &dlg);
 
@@ -105,6 +109,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	pjsip_endpt_respond_stateless( g.sip_endpt, rdata, 
 				       500, &reason,
 				       NULL, NULL);
+    pj_perror (5, "dlg", status, "op");
 	return PJ_TRUE;
     }
 
@@ -121,7 +126,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 
 		
 
-    status = pjsip_inv_create_uas( dlg, rdata, sdp, 0, &inv);
+    status = pjsip_inv_create_uas( dlg, rdata, NULL, 0, &inv);
     if (status != PJ_SUCCESS) {
 	pjsip_dlg_create_response(dlg, rdata, 500, NULL, &tdata);
 	pjsip_dlg_send_response(dlg, pjsip_rdata_get_tsx(rdata), tdata);
@@ -129,7 +134,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	return PJ_TRUE;
     }
     pjsip_inv_initial_answer(inv, rdata, 180, 
-				      NULL, sdp, &tdata);
+				      NULL, NULL, &tdata);
 	pjsip_inv_send_msg(inv, tdata); 
     
     // TODO: Here connect to ringback tonegen

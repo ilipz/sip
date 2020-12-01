@@ -725,6 +725,7 @@ static void process_incoming_call(pjsip_rx_data *rdata)
 
 	
     /* Create UAS dialog */
+    printf("\n\n\n%s\n\n\n", app.local_contact.ptr);
     status = pjsip_dlg_create_uas_and_inc_lock( pjsip_ua_instance(), rdata,
 						&app.local_contact, &dlg);
 
@@ -986,6 +987,7 @@ static pj_status_t init_options(int argc, char *argv[])
     app.thread_count = 1;
     app.sip_port = 5060;
     app.rtp_start_port = RTP_START_PORT;
+    printf ("\n\n\n%s\n\n\n", ip_addr);
     app.local_addr = pj_str(ip_addr);
     app.log_level = 5;
     app.app_log_level = 3;
@@ -1073,6 +1075,7 @@ static pj_status_t init_options(int argc, char *argv[])
     /* Build local URI and contact */
     pj_ansi_sprintf( local_uri, "sip:%s:%d", app.local_addr.ptr, app.sip_port);
     app.local_uri = pj_str(local_uri);
+    printf ("\n\n\n%s\n\n\n", app.local_uri.ptr);
     app.local_contact = app.local_uri;
 
 
