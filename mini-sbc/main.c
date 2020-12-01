@@ -51,11 +51,12 @@ int main (int argc, char **argv)
     g.to_quit = 0;
     g.pause = 0;
     // TODO: parse options and json
-
-    pjsip_endpt_register_module(g.sip_endpt, &mod_logger);
+    init_sip ();
+    
+    pjsip_endpt_register_module(g.sip_endpt, &g.mod_logger);
     // TODO: catch errors
 
-    init_sip ();
+    
 
     init_media ();
 

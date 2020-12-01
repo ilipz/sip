@@ -1,6 +1,6 @@
 #include "inits.h"
-
-pjsip_module mod_app =
+extern struct global_var g;
+static pjsip_module tmp1 = 
 {
     NULL, NULL,			    /* prev, next.		*/
     { "App module", 13 },	    /* Name.			*/
@@ -17,7 +17,7 @@ pjsip_module mod_app =
     NULL,			    /* on_tsx_state()		*/
 };
 
-pjsip_module mod_logger = 
+ static pjsip_module tmp2 = 
 {
     NULL, NULL,				/* prev, next.		*/
     { "Logger module", 14 },		/* Name.		*/
@@ -40,7 +40,8 @@ void init_sip()
     unsigned i;
     pj_status_t status;
 
-    
+    g.mod_app = tmp1;
+    g.mod_logger = tmp2;
 
     /* Create the endpoint: */
     status = pjsip_endpt_create(&g.cp.factory, pj_gethostname()->ptr, 
@@ -111,7 +112,7 @@ void init_sip()
     }
 
     /* Register our module to receive incoming requests. */
-    status = pjsip_endpt_register_module( g.sip_endpt, &mod_app);
+    status = pjsip_endpt_register_module( g.sip_endpt, &g.mod_app);
     PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
 
 
@@ -140,6 +141,7 @@ pj_bool_t init_media()
 void init_juncs ()
 {
     int dis_count=0;
+    const char *THIS_FUNCTION = "init_juncs()";
     /////
     pj_status_t status;
     pj_uint16_t rtp_port = (pj_uint16_t)(g.rtp_start_port & 0xFFFE);

@@ -1,5 +1,5 @@
 #include "util.h"
-
+extern struct global_var g;
 numrecord_t *get_numrecord (char *num)
 {
 	for (int i=0; i<10; i++)
@@ -45,7 +45,7 @@ pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
 
 
     /* Attach call data to invite session */
-    l->current.inv->mod_data[mod_app.id] = l;
+    l->current.inv->mod_data[g.mod_app.id] = l;
 
     /* Mark start of call */
    // pj_gettimeofday(&call->start_time);
@@ -74,4 +74,103 @@ pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
     return PJ_TRUE;
 }
 
+pj_status_t create_sdp( pj_pool_t *pool,
+			       leg_t *l,
+			       pjmedia_sdp_session **p_sdp)
+{
+    pj_time_val tv;
+    pjmedia_sdp_session *sdp;
+    pjmedia_sdp_media *m;
+    pjmedia_sdp_attr *attr;
+    pjmedia_transport_info tpinfo;
+    //struct media_stream *audio = &call->media[0];
 
+    PJ_ASSERT_RETURN(pool && p_sdp, PJ_EINVAL);
+
+
+    /* Get transport info */
+    pjmedia_transport_info_init(&tpinfo);
+    pjmedia_transport_get_info(l->media_transport, &tpinfo);
+
+    /* Create and initialize basic SDP session */
+    sdp = pj_pool_zalloc (pool, sizeof(pjmedia_sdp_session));
+
+    pj_gettimeofday(&tv);
+    sdp->origin.user = pj_str("pjsip-siprtp");
+    sdp->origin.version = sdp->origin.id = tv.sec + 2208988800UL;
+    sdp->origin.net_type = pj_str("IN");
+    sdp->origin.addr_type = pj_str("IP4");
+    sdp->origin.addr = *pj_gethostname();
+    sdp->name = pj_str("pjsip");
+
+    /* Since we only support one media stream at present, put the
+     * SDP connection line in the session level.
+     */
+    sdp->conn = pj_pool_zalloc (pool, sizeof(pjmedia_sdp_conn));
+    sdp->conn->net_type = pj_str("IN");
+    sdp->conn->addr_type = pj_str("IP4");
+    sdp->conn->addr = g.local_addr;
+
+
+    /* SDP time and attributes. */
+    sdp->time.start = sdp->time.stop = 0;
+    sdp->attr_count = 0;
+
+    /* Create media stream 0: */
+
+    sdp->media_count = 1;
+    m = pj_pool_zalloc (pool, sizeof(pjmedia_sdp_media));
+    sdp->media[0] = m;
+
+    /* Standard media info: */
+    m->desc.media = pj_str("audio");
+    m->desc.port = pj_ntohs(tpinfo.sock_info.rtp_addr_name.ipv4.sin_port);
+    m->desc.port_count = 1;
+    m->desc.transport = pj_str("RTP/AVP");
+
+    /* Add format and rtpmap for each codec. */
+    m->desc.fmt_count = 1;
+    m->attr_count = 0;
+
+    {
+	pjmedia_sdp_rtpmap rtpmap;
+	char ptstr[10];
+
+	sprintf(ptstr, "%d", g.audio_codec.pt);
+	pj_strdup2(pool, &m->desc.fmt[0], ptstr);
+	rtpmap.pt = m->desc.fmt[0];
+	rtpmap.clock_rate = g.audio_codec.clock_rate;
+	rtpmap.enc_name = pj_str(g.audio_codec.name);
+	rtpmap.param.slen = 0;
+
+	pjmedia_sdp_rtpmap_to_attr(pool, &rtpmap, &attr);
+	m->attr[m->attr_count++] = attr;
+    }
+
+    /* Add sendrecv attribute. */
+    attr = pj_pool_zalloc(pool, sizeof(pjmedia_sdp_attr));
+    attr->name = pj_str("sendrecv");
+    m->attr[m->attr_count++] = attr;
+
+
+    /*
+     * Add support telephony event
+     */
+    m->desc.fmt[m->desc.fmt_count++] = pj_str("121");
+    /* Add rtpmap. */
+    attr = pj_pool_zalloc(pool, sizeof(pjmedia_sdp_attr));
+    attr->name = pj_str("rtpmap");
+    attr->value = pj_str("121 telephone-event/8000");
+    m->attr[m->attr_count++] = attr;
+    /* Add fmtp */
+    attr = pj_pool_zalloc(pool, sizeof(pjmedia_sdp_attr));
+    attr->name = pj_str("fmtp");
+    attr->value = pj_str("121 0-15");
+    m->attr[m->attr_count++] = attr;
+
+
+    /* Done */
+    *p_sdp = sdp;
+
+    return PJ_SUCCESS;
+}

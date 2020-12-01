@@ -7,4 +7,6 @@
 #include "../utils/util.h"
 #include "../threads/junc_controller.h"
 
+pj_bool_t on_rx_request (pjsip_rx_data *rdata);
+
 #endif

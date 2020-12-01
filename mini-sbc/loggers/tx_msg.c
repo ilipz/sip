@@ -1,6 +1,6 @@
 #include "tx_msg.h"
-
-pj_status_t on_tx_msg(pjsip_tx_data *tdata)
+extern struct global_var g;
+pj_status_t logger_tx_msg(pjsip_tx_data *tdata)
 {
     
     /* Important note:

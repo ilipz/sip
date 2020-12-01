@@ -1,12 +1,12 @@
 #include "free.h"
-
+extern struct global_var g;
 void free_junction (junction_t *j)
 {
     if (j->state == DISABLED)
         return;
 
-    pjmedia_master_port_stop (j->mp_in2out);
-    pjmedia_master_port_stop (j->mp_out2in);
+    pjmedia_master_port_stop (j->mp_in_out);
+    pjmedia_master_port_stop (j->mp_out_in);
     pj_thread_destroy (j->controller_thread);
     // if failed then disable junction
     free_leg (&j->out_leg);

@@ -1,8 +1,8 @@
 #include "rx_msg.h"
-
-pj_bool_t logger_on_rx_msg(pjsip_rx_data *rdata)
+extern struct global_var g;
+pj_bool_t logger_rx_msg(pjsip_rx_data *rdata)
 {
-    PJ_LOG(4,(THIS_FILE, "RX %d bytes %s from %s:%d:\n"
+    PJ_LOG(4,(APPNAME, "RX %d bytes %s from %s:%d:\n"
 			 "%s\n"
 			 "--end msg--",
 			 rdata->msg_info.len,

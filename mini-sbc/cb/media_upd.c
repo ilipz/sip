@@ -1,6 +1,6 @@
 #include "media_upd.h"
-
-void call_on_media_update (pjsip_inv_session *inv, pj_status_t status)
+extern struct global_var g;
+void on_media_update (pjsip_inv_session *inv, pj_status_t status)
 {
     const char THIS_FUNCTION[] = "call_on_media_update()";
     pjmedia_stream_info stream_info;
@@ -19,7 +19,7 @@ void call_on_media_update (pjsip_inv_session *inv, pj_status_t status)
     
     PJ_LOG (5, (THIS_FUNCTION, "called for slot #%d", index)); */
     
-    leg_t *tmp = inv->mod_data[mod_app.id];
+    leg_t *tmp = inv->mod_data[g.mod_app.id];
 
     if (status != PJ_SUCCESS) 
     {

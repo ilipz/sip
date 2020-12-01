@@ -1,5 +1,5 @@
 #include "siprtp.h"
-
+extern struct global_var g;
 const char *good_number(char *buf, pj_int32_t val)
 {
     if (val < 1000) {

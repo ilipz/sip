@@ -2,12 +2,13 @@ PJ_FLAG = `pkg-config --cflags --libs libpjproject`
 OBJ = gcc -g -c $(PJ_FLAG)
 
 all: cb loggers juncs threads utils main
+	gcc *.o -o ../ms $(PJ_FLAG)
 ##############################
 cb: forked media_upd rx_req state_chd
 
 juncs: free
 
-loggers: rx_msg siprtp tx_msg
+loggers: rx_msg  tx_msg
 
 threads: console junc_controller
 

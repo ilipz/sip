@@ -1,6 +1,9 @@
 #include "state_chd.h"
 
-void call_on_state_changed (pjsip_inv_session *inv, pjsip_event *e)
+extern struct global_var g;
+
+
+void on_state_changed (pjsip_inv_session *inv, pjsip_event *e)
 {
     PJ_UNUSED_ARG(e);
     const char THIS_FUNCTION[] = "call_on_state_changed()";
@@ -16,7 +19,7 @@ void call_on_state_changed (pjsip_inv_session *inv, pjsip_event *e)
     if (!slot->busy)
         return;*/
     
-    leg_t *l = inv->mod_data[mod_app.id];
+    leg_t *l = inv->mod_data[g.mod_app.id];
     if (l == NULL)
         return;
 

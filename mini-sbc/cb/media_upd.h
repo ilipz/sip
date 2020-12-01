@@ -3,6 +3,7 @@
 
 #include "../types.h"
 #include "../juncs/junc_t.h"
+#include "../utils/exits.h"
 
 void on_media_update (pjsip_inv_session *inv, pj_status_t status);
 

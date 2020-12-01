@@ -1,5 +1,7 @@
 #include "junc_controller.h"
 
+extern struct global_var g;
+
 int junc_controller (void *p)
 {
     junction_t *j = (junction_t*) p;

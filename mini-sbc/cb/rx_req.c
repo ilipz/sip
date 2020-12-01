@@ -49,7 +49,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 		NULL, NULL);
 	}
 	
-	return;
+	return PJ_TRUE;
     }
 
     // Find in adddres book
@@ -63,7 +63,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	if (tel == NULL)
 	{
 		pjsip_endpt_respond_stateless(g.sip_endpt, rdata, 404, NULL, NULL, NULL);
-		return;
+		return PJ_TRUE;
 	}
 
     
@@ -100,7 +100,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	pjsip_endpt_respond_stateless( g.sip_endpt, rdata, 
 				       500, &reason,
 				       NULL, NULL);
-	return;
+	return PJ_TRUE;
     }
 
     /* Create SDP */
@@ -121,7 +121,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	pjsip_dlg_create_response(dlg, rdata, 500, NULL, &tdata);
 	pjsip_dlg_send_response(dlg, pjsip_rdata_get_tsx(rdata), tdata);
 	pjsip_dlg_dec_lock(dlg);
-	return;
+	return PJ_TRUE;
     }
     pjsip_inv_initial_answer(inv, rdata, 180, 
 				      NULL, sdp, &tdata);
@@ -133,7 +133,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     pjsip_dlg_dec_lock(dlg);	
 
     /* Attach call data to invite session */ 
-    inv->mod_data[mod_app.id] = &j->in_leg;
+    inv->mod_data[g.mod_app.id] = &j->in_leg;
 
     /* Mark start of call */
     //pj_gettimeofday(&call->start_time);
@@ -150,7 +150,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	        pjsip_inv_send_msg(inv, tdata); 
 	    else
 	        pjsip_inv_terminate(inv, 500, PJ_FALSE);
-	return;
+	return PJ_TRUE;
     }
 
 
@@ -164,7 +164,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     else
     {
         pjsip_inv_terminate(inv, 500, PJ_FALSE);
-        j->state = DISABLED
+        j->state = DISABLED;
     }
     
 
