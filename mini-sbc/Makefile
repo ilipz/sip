@@ -55,4 +55,10 @@ util:
 main:
 	$(OBJ) ../main.c
 
+.PHONY: clean
+
+clean:
+	rm *.o 
+	rm ../ms
+
 

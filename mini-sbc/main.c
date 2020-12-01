@@ -4,7 +4,6 @@
 #include "cb/rx_req.h"
 #include "cb/state_chd.h"
 #include "juncs/free.h"
-#include "juncs/junc_t.h"
 #include "loggers/rx_msg.h"
 #include "loggers/siprtp.h"
 #include "loggers/tx_msg.h"
@@ -27,7 +26,7 @@ struct global_var g;
 
 numrecord_t nums[10] = 
 {
-    {"05", "127.0.0.1:5060"},
+    {"05", "192.168.0.9:7060"},
     {"444", "127.0.0.1:5060"},
     {"9000", "127.0.0.1:5060"},
     {"1234", "127.0.0.1:5060"}
@@ -52,8 +51,8 @@ int main (int argc, char **argv)
     g.pause = 0;
     // TODO: parse options and json
     init_sip ();
+
     
-    pjsip_endpt_register_module(g.sip_endpt, &g.mod_logger);
     // TODO: catch errors
 
     

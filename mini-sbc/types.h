@@ -10,7 +10,7 @@
 #include <pjlib.h>
 #include <pthread.h>
 #include <stdlib.h>
-#include "juncs/junc_t.h"
+
 
 #define PJ_LOG_ERROR    "!!! ERROR: " 
 #define APPNAME         "MINI-SBC: "

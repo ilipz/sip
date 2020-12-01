@@ -1,5 +1,6 @@
 #include "util.h"
 extern struct global_var g;
+extern numrecord_t nums[10];
 numrecord_t *get_numrecord (char *num)
 {
 	for (int i=0; i<10; i++)

@@ -1,9 +1,9 @@
 #include "inits.h"
 extern struct global_var g;
-static pjsip_module tmp1 = 
+pjsip_module tmp1 = 
 {
     NULL, NULL,			    /* prev, next.		*/
-    { "App module", 13 },	    /* Name.			*/
+    { "App module", 10 },	    /* Name.			*/
     -1,				    /* Id			*/
     PJSIP_MOD_PRIORITY_APPLICATION, /* Priority			*/
     NULL,			    /* load()			*/
@@ -17,7 +17,7 @@ static pjsip_module tmp1 =
     NULL,			    /* on_tsx_state()		*/
 };
 
- static pjsip_module tmp2 = 
+ pjsip_module tmp2 = 
 {
     NULL, NULL,				/* prev, next.		*/
     { "Logger module", 14 },		/* Name.		*/
@@ -46,9 +46,11 @@ void init_sip()
     /* Create the endpoint: */
     status = pjsip_endpt_create(&g.cp.factory, pj_gethostname()->ptr, 
 				&g.sip_endpt);
-    PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
+    if (status != PJ_SUCCESS)
+        exit (80);
 
-
+    g.sip_port = 5060;
+    g.rtp_port = 4000;
     /* Add UDP transport. */
     {
 	pj_sockaddr_in addr;
@@ -67,6 +69,8 @@ void init_sip()
 
 	    status = pj_sockaddr_in_init(&addr, &g.local_addr, 
 					 (pj_uint16_t)g.sip_port);
+        if (status != PJ_SUCCESS)
+        exit (80);
 	    
 	}
 
@@ -74,6 +78,8 @@ void init_sip()
 					    (g.local_addr.slen ? &addrname:NULL),
 					    2, &tp);
 	
+    if (status != PJ_SUCCESS)
+        exit (80);
 
 	PJ_LOG(3,(APPNAME, "SIP UDP listening on %.*s:%d",
 		  (int)tp->local_name.host.slen, tp->local_name.host.ptr,
@@ -85,15 +91,18 @@ void init_sip()
      * This will create/initialize transaction hash tables etc.
      */
     status = pjsip_tsx_layer_init_module(g.sip_endpt);
-    PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
+    if (status != PJ_SUCCESS)
+        exit (80);
 
     /*  Initialize UA layer. */
     status = pjsip_ua_init_module( g.sip_endpt, NULL );
-    PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
+    if (status != PJ_SUCCESS)
+        exit (80);
 
     /* Initialize 100rel support */
     status = pjsip_100rel_init_module(g.sip_endpt);
-    PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
+    if (status != PJ_SUCCESS)
+        exit (80);
 
     /*  Init invite session module. */
     {
@@ -102,20 +111,28 @@ void init_sip()
 	/* Init the callback for INVITE session: */
 	pj_bzero(&inv_cb, sizeof(inv_cb));
 	inv_cb.on_state_changed = &on_state_changed;
-	//inv_cb.on_new_session = &on_forked;
+	inv_cb.on_new_session = &on_forked;
 	inv_cb.on_media_update = &on_media_update;
 	//inv_cb.on_send_ack = &on_send_ack;
 
 	/* Initialize invite session module:  */
 	status = pjsip_inv_usage_init(g.sip_endpt, &inv_cb);
-	PJ_ASSERT_RETURN(status == PJ_SUCCESS, 1);
+	if (status != PJ_SUCCESS)
+    {
+        pj_perror (5, "nu ty pone", status, "wot tak");
+        exit (1488);
+    }
     }
 
     /* Register our module to receive incoming requests. */
     status = pjsip_endpt_register_module( g.sip_endpt, &g.mod_app);
-    PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
+    if (status != PJ_SUCCESS)
+        exit (80);
+    //PJ_ASSERT_RETURN(status == PJ_SUCCESS, status);
 
-
+    status = pjsip_endpt_register_module(g.sip_endpt, &g.mod_logger);
+    if (status != PJ_SUCCESS)
+        exit (80);
     /* Done */
     
 }
@@ -185,7 +202,7 @@ void init_juncs ()
             status = pjmedia_transport_udp_create2 (g.media_endpt, "in_leg", &g.local_addr, rtp_port++, 0, &j->out_leg.media_transport);
             if (PJ_SUCCESS == status)
             {
-                pj_perror (5, THIS_FUNCTION, status, "pjmedia_transport_udp_create2");
+                //pj_perror (5, THIS_FUNCTION, status, "pjmedia_transport_udp_create2");
                 j->state = READY;
                 break;
             }

@@ -2,7 +2,6 @@
 #define UTIL_H
 
 #include "../types.h"
-#include "../juncs/junc_t.h"
 
 extern numrecord_t nums[10];
 

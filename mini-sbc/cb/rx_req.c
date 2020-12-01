@@ -1,9 +1,12 @@
 #include "rx_req.h"
 
+extern struct global_var g;
+extern  numrecord_t nums[10];
+
 pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 {
     unsigned i, options;
-    
+    printf ("\n\nPJ_FALSE\n\n");
     pjsip_dialog *dlg;
     pjmedia_sdp_session *sdp;
     pjsip_tx_data *tdata;
@@ -13,7 +16,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     // Check validity
 
     /* Ignore strandled ACKs (must not send respone */
-    pjsip_endpt_respond_stateless(g.sip_endpt, rdata, 100, NULL, NULL, NULL);
+    
     if (rdata->msg_info.msg->line.req.method.id == PJSIP_ACK_METHOD)
 	return PJ_FALSE;
 
@@ -23,6 +26,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	pjsip_endpt_respond_stateless( g.sip_endpt, rdata, 
 				       500, &reason,
 				       NULL, NULL);
+                       //printf ("\n\nPJ_FALSE\n\n");
 	return PJ_TRUE;
     }
 
@@ -80,6 +84,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
                 j = &g.junctions[i];
                 j->state = BUSY;
                 pj_mutex_unlock (j->mutex);
+                break;
             }
     }
 
@@ -170,6 +175,6 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 
     // if failed then disable junc
     
-   
+    return PJ_TRUE;
    
 }
