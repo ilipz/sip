@@ -12,6 +12,7 @@ numrecord_t *get_numrecord (char *num)
 pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
 {
     // TODO: here if any function fail then make junction disabled
+	//return PJ_FALSE;
     char dest_uri[64];
     sprintf (dest_uri, "sip:%s@%s", tel->num, tel->addr);
     pj_str_t dst_uri = pj_str (dest_uri);
@@ -37,10 +38,11 @@ pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
     create_sdp( dlg->pool, l, &sdp);
 
     /* Create the INVITE session. */
-    status = pjsip_inv_create_uac( dlg, NULL, 0, &l->current.inv);
+    status = pjsip_inv_create_uac( dlg, l->current.local_sdp, 0, &l->current.inv);
     if (status != PJ_SUCCESS) 
     {
 	    pjsip_dlg_terminate(dlg);
+		pj_perror (5, "make_call", status, "create uac");
         return PJ_FALSE;
     }
 

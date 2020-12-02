@@ -14,7 +14,7 @@ int junc_controller (void *p)
             pjmedia_master_port_start (j->mp_in_out);
 
             pjmedia_master_port_set_uport (j->mp_out_in, j->out_leg.current.stream_port);
-            pjmedia_master_port_set_dport (j->mp_in_out, j->in_leg.current.stream_port);
+            pjmedia_master_port_set_dport (j->mp_out_in, j->in_leg.current.stream_port);
             pjmedia_master_port_start (j->mp_in_out);
             return 0;
         }

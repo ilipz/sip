@@ -192,6 +192,9 @@ void init_juncs ()
         j->index = current_junc;
         j->state = DISABLED;
 
+        pjmedia_master_port_create (g.pool, NULL, NULL, 0, &j->mp_in_out);
+        pjmedia_master_port_create (g.pool, NULL, NULL, 0, &j->mp_out_in);
+
         nullize_leg (&j->in_leg);
         j->in_leg.type = IN;
         j->in_leg.reverse = &j->out_leg;

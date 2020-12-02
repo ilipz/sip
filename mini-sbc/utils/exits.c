@@ -3,5 +3,5 @@ extern struct global_var g;
 
 void emergency_exit ()
 {
-    return;
+    exit (10);
 }

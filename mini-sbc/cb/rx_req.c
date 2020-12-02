@@ -12,6 +12,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     pjsip_tx_data *tdata;
     pj_status_t status;
 	pj_str_t reason;
+    pjmedia_sock_info   media_sock_info;
     
     // Check validity
 
@@ -30,6 +31,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	return PJ_TRUE;
     }
 
+    pjsip_endpt_respond_stateless(g.sip_endpt, rdata, 100, NULL, NULL, NULL);
 
     /* Verify that we can handle the request. */
     options = 0;
@@ -121,21 +123,31 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 
 
     /* Create UAS invite session */
+
+    pjmedia_transport_info mti;
+	pjmedia_transport_info_init(&mti);
+	status = pjmedia_transport_get_info(j->in_leg.media_transport, &mti);
+
+    pj_memcpy(&media_sock_info, &mti.sock_info,
+		  sizeof(pjmedia_sock_info));
 	
     pjsip_inv_session *inv;
+    pjmedia_sdp_session *local_sdp;
+	pjmedia_endpt_create_sdp(g.media_endpt, dlg->pool, 1, &media_sock_info, &local_sdp);
 
-		
+    j->out_leg.current.local_sdp = local_sdp;
 
-    status = pjsip_inv_create_uas( dlg, rdata, NULL, 0, &inv);
+    status = pjsip_inv_create_uas( dlg, rdata, local_sdp, 0, &inv);
     if (status != PJ_SUCCESS) {
 	pjsip_dlg_create_response(dlg, rdata, 500, NULL, &tdata);
 	pjsip_dlg_send_response(dlg, pjsip_rdata_get_tsx(rdata), tdata);
 	pjsip_dlg_dec_lock(dlg);
 	return PJ_TRUE;
     }
-    pjsip_inv_initial_answer(inv, rdata, 180, 
+    /*status = pjsip_inv_initial_answer(inv, rdata, 180, 
 				      NULL, NULL, &tdata);
-	pjsip_inv_send_msg(inv, tdata); 
+    pj_perror (5, "inv 180", status, "a");
+	pjsip_inv_send_msg(inv, tdata); */ 
     
     // TODO: Here connect to ringback tonegen
 
@@ -151,18 +163,24 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 
 	//pjsip_inv_answer(inv, 180, NULL, sdp, &tdata);
 	 
-    /* Create 183 response .*/
-    status = pjsip_inv_answer(inv, 183, NULL, NULL, &tdata);
+    /* Create 183 response */
+    printf ("\n\n\n\nSEND 183\n\n\n");
+    status = pjsip_inv_initial_answer(inv, rdata, 183, NULL, NULL, &tdata);
     if (status != PJ_SUCCESS) 
     {
-	    status = pjsip_inv_answer(inv, PJSIP_SC_NOT_ACCEPTABLE, NULL, NULL, &tdata);
+	    pj_perror (5, "inv answer", status, "rx");
+        status = pjsip_inv_answer(inv, PJSIP_SC_NOT_ACCEPTABLE, NULL, NULL, &tdata);
 	    if (status == PJ_SUCCESS)
 	        pjsip_inv_send_msg(inv, tdata); 
 	    else
-	        pjsip_inv_terminate(inv, 500, PJ_FALSE);
+        {
+            pjsip_inv_terminate(inv, 500, PJ_FALSE);
+	    pj_perror (5, "inv answer", status, "rx");
+        }
+	        
 	    return PJ_TRUE;
     }
-    pjsip_inv_send_msg(inv, tdata);
+    pjsip_inv_send_msg(inv, tdata); 
     j->in_leg.current.inv = inv;
 
     /* Send the 200 response. */
