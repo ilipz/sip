@@ -50,7 +50,7 @@ void init_sip()
         exit (80);
 
     g.sip_port = 5060;
-    g.rtp_port = 4000;
+    g.rtp_start_port = 4000;
     /* Add UDP transport. */
     {
 	pj_sockaddr_in addr;
@@ -175,6 +175,8 @@ pj_bool_t init_media()
 
     pjmedia_codec_g711_init(g.media_endpt);
 
+    pjmedia_null_port_create (g.pool, 8000, 1, 160, 16, &g.nullport);
+
 }
 
 void init_juncs ()
@@ -189,11 +191,22 @@ void init_juncs ()
     for (int current_junc=0; current_junc<10; current_junc++)
     {
         junction_t *j = &g.junctions[current_junc];
+        pj_status_t status;
         j->index = current_junc;
         j->state = DISABLED;
 
-        pjmedia_master_port_create (g.pool, NULL, NULL, 0, &j->mp_in_out);
-        pjmedia_master_port_create (g.pool, NULL, NULL, 0, &j->mp_out_in);
+        status =  pjmedia_master_port_create (g.pool, g.nullport, g.nullport, 0, &j->mp_in_out);
+        if (status != PJ_SUCCESS)
+        {
+            pj_perror (5, "init_junc", status, "mp create");
+            exit (2);
+        }
+        status = pjmedia_master_port_create (g.pool, g.nullport, g.nullport, 0, &j->mp_out_in);
+        if (status != PJ_SUCCESS)
+        {
+            pj_perror (5, "init_junc", status, "mp create");
+            exit (3);
+        }
 
         nullize_leg (&j->in_leg);
         j->in_leg.type = IN;

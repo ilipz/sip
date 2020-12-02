@@ -7,7 +7,7 @@ void on_media_update (pjsip_inv_session *inv, pj_status_t status)
     const pjmedia_sdp_session *local_sdp;
     const pjmedia_sdp_session *remote_sdp;
 
-
+    
     
 
     /*int index = get_slot_by_inv (inv);
@@ -20,7 +20,7 @@ void on_media_update (pjsip_inv_session *inv, pj_status_t status)
     PJ_LOG (5, (THIS_FUNCTION, "called for slot #%d", index)); */
     
     leg_t *tmp = inv->mod_data[g.mod_app.id];
-
+    printf ("\n\n\n MEDIA UPD ENTERED %s\n\n\n", tmp->type == OUT ? "OUT LEG" : "IN LEG");
     if (status != PJ_SUCCESS) 
     {
         pj_perror (5, THIS_FUNCTION, status, "argument 2 (status) invalid");
@@ -85,12 +85,13 @@ void on_media_update (pjsip_inv_session *inv, pj_status_t status)
             emergency_exit ();
     }
 
+    tmp->current.sdp_neg_done = PJ_TRUE;
     
      
 
 	
     
-    tmp->current.sdp_neg_done = PJ_TRUE;
+    
     
 
     

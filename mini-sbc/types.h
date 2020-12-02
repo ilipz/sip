@@ -74,6 +74,8 @@ struct global_var
     pj_caching_pool cp;
     pj_pool_t       *pool;
 
+    pjmedia_port *nullport;
+
     pjsip_module mod_logger;
     pjsip_module mod_app;
     pj_str_t		 local_uri;
@@ -81,7 +83,6 @@ struct global_var
     pj_str_t		 local_addr;
     char             local_contact_s[64];
     pj_uint16_t     sip_port;
-    pj_uint16_t     rtp_port;
 
     junction_t      junctions[10];
     numrecord_t     numbook[20];

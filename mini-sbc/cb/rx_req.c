@@ -164,10 +164,20 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	//pjsip_inv_answer(inv, 180, NULL, sdp, &tdata);
 	 
     /* Create 183 response */
-    printf ("\n\n\n\nSEND 183\n\n\n");
-    status = pjsip_inv_initial_answer(inv, rdata, 183, NULL, NULL, &tdata);
-    if (status != PJ_SUCCESS) 
+     
+    j->in_leg.current.inv = inv;
+
+    /* Send the 200 response. */
+
+	// Here need sync both shoulders before
+    if (make_call (tel, &j->out_leg) == PJ_TRUE)
     {
+        pj_thread_create (g.pool, "junc_controller", junc_controller, j, 0, 0, &j->controller_thread);
+
+        printf ("\n\n\n\nSEND 183\n\n\n");
+        status = pjsip_inv_initial_answer(inv, rdata, 183, NULL, NULL, &tdata);
+        if (status != PJ_SUCCESS) 
+        {
 	    pj_perror (5, "inv answer", status, "rx");
         status = pjsip_inv_answer(inv, PJSIP_SC_NOT_ACCEPTABLE, NULL, NULL, &tdata);
 	    if (status == PJ_SUCCESS)
@@ -179,16 +189,8 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
         }
 	        
 	    return PJ_TRUE;
-    }
-    pjsip_inv_send_msg(inv, tdata); 
-    j->in_leg.current.inv = inv;
-
-    /* Send the 200 response. */
-
-	// Here need sync both shoulders before
-    if (make_call (tel, &j->out_leg) == PJ_TRUE)
-    {
-        pj_thread_create (g.pool, "junc_controller", junc_controller, j, 0, 0, &j->controller_thread);
+        }
+        pjsip_inv_send_msg(inv, tdata);
     }
     else
     {
