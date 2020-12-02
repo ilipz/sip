@@ -19,15 +19,15 @@ void free_junction (junction_t *j)
 void free_leg (leg_t *l)
 {
     if (l == NULL)
-        return 0;
+        return;
     pjsip_tx_data *tdata;
     int status_code=0;
-   
+    pj_status_t status;
    // TODO:
    // lock & unlock mutex
    // disconnect&remove from tonegen conference
    // destroy stream
-    switch (l->current.inv->state)
+    /*switch (l->current.inv->state)
     {
         case PJSIP_INV_STATE_DISCONNECTED: 
         case PJSIP_INV_STATE_CONFIRMED:
@@ -44,10 +44,18 @@ void free_leg (leg_t *l)
         
     }
     if (status_code > 0)
+    {*/
+    if (l->current.inv)
+    if (l->current.inv->state != PJSIP_INV_STATE_DISCONNECTED)
     {
-        pjsip_inv_end_session (l->current.inv, 200, NULL, &tdata);
-        pjsip_inv_send_msg (l->current.inv, tdata);
+        status = pjsip_inv_end_session (l->current.inv, 200, NULL, &tdata);
+        if (status != PJ_SUCCESS)
+            pj_perror (5, "free_leg", status, "inv end session");
+        if (tdata)
+            pjsip_inv_send_msg (l->current.inv, tdata);
     }
+    
+    //}
     
     nullize_leg (l);
 }

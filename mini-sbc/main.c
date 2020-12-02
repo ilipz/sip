@@ -13,6 +13,7 @@
 #include "utils/inits.h"
 #include "utils/util.h"
 
+
 struct codec audio_codecs[] = 
 {
     { 0,  "PCMU", 8000, 16000, 20, "G.711 ULaw" },
@@ -26,7 +27,7 @@ struct global_var g;
 
 numrecord_t nums[10] = 
 {
-    {"05", "192.168.0.9:7060"},
+    {"05", "192.168.40.197:7060"},
     {"444", "127.0.0.1:5060"},
     {"9000", "127.0.0.1:5060"},
     {"1234", "127.0.0.1:5060"}

@@ -18,7 +18,9 @@ int junc_controller (void *p)
             pjmedia_master_port_start (j->mp_in_out);
             return 0;
         }
+        //pjsip_dlg_modify_response
 
+        if (j->in_leg.current.inv)
         switch (j->in_leg.current.inv->state)
         {
             case PJSIP_INV_STATE_DISCONNECTED:
@@ -27,6 +29,7 @@ int junc_controller (void *p)
             default: break;
         }
 
+        if (j->out_leg.current.inv)
         switch (j->out_leg.current.inv->state)
         {
             case PJSIP_INV_STATE_DISCONNECTED:

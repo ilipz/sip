@@ -114,7 +114,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
     }
 
     /* Create SDP */
-    create_sdp( dlg->pool, &j->in_leg, &sdp);
+    //create_sdp( dlg->pool, &j->in_leg, &sdp);
 
 
 	 
@@ -122,7 +122,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 
     /* Create UAS invite session */
 	
-    pjsip_inv_session *inv = j->in_leg.current.inv;
+    pjsip_inv_session *inv;
 
 		
 
@@ -150,7 +150,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 
 
 	//pjsip_inv_answer(inv, 180, NULL, sdp, &tdata);
-	pjsip_inv_send_msg(inv, tdata); 
+	 
     /* Create 183 response .*/
     status = pjsip_inv_answer(inv, 183, NULL, NULL, &tdata);
     if (status != PJ_SUCCESS) 
@@ -160,9 +160,10 @@ pj_bool_t on_rx_request (pjsip_rx_data *rdata)
 	        pjsip_inv_send_msg(inv, tdata); 
 	    else
 	        pjsip_inv_terminate(inv, 500, PJ_FALSE);
-	return PJ_TRUE;
+	    return PJ_TRUE;
     }
-
+    pjsip_inv_send_msg(inv, tdata);
+    j->in_leg.current.inv = inv;
 
     /* Send the 200 response. */
 

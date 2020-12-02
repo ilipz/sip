@@ -3,6 +3,7 @@ extern struct global_var g;
 pj_status_t logger_tx_msg(pjsip_tx_data *tdata)
 {
     
+    return PJ_SUCCESS;
     /* Important note:
      *	tp_info field is only valid after outgoing messages has passed
      *	transport layer. So don't try to access tp_info when the module
