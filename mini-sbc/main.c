@@ -35,42 +35,109 @@ numrecord_t nums[10] =
 
 int main (int argc, char **argv)
 {
+    PJ_LOG (5, (APPNAME, "Application has been started"));
+    printf ("\n\n\n");
+
+    static const char *THIS_FUNCTION = "main()";
     pj_status_t status;
 
-    pj_init ();
-    // TODO: catch errors
+    status = pj_init ();
+    if (status != PJ_SUCCESS)
+    {
+        pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pj_init()");
+        halt ("pj_init()");
+    }
 
-    pjlib_util_init();
-    // TODO: catch errors
+    status = pjlib_util_init();
+    if (status != PJ_SUCCESS)
+    {
+        pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pjlib_util_init()");
+        halt ("pjlib_util_init()");
+    }
 
     pj_caching_pool_init(&g.cp, &pj_pool_factory_default_policy, 0);
 
     
     g.pool = pj_pool_create(&g.cp.factory, "app", 4000, 4000, NULL);    
+    if (g.pool == NULL)
+    {
+        PJ_LOG (5, (THIS_FUNCTION, PJ_LOG_ERROR"global pool hasn't been created (pool pointer == NULL). App halted"));
+        halt ("pj_pool_create()");
+    }
+
+    init_exits ();
 
     g.to_quit = 0;
     g.pause = 0;
+
+    // Create: conf bridge, nullport, conf master port, tonegen  
+
     // TODO: parse options and json
-    init_sip ();
-
     
-    // TODO: catch errors
-
-    
+    init_sip ();    
 
     init_media ();
 
     init_juncs ();
-    // TODO: catch errors
+    
+
+
+    pj_thread_t *_console_thread;
+    status = pj_thread_create (g.pool, "Console thread", console_thread, NULL, 0, 0, &_console_thread);
+    if (status != PJ_SUCCESS)
+        emergency_exit ("main()::pj_thread_create() for console thread", &status);
 
     pj_time_val timeout = {0, 10};
+    
     while (!g.to_quit)
     {
-        pjsip_endpt_handle_events (g.sip_endpt, &timeout);
+        status = pjsip_endpt_handle_events (g.sip_endpt, &timeout);
+        if (status != PJ_SUCCESS)
+            emergency_exit ("main()::pjsip_endpt_handle_events()", &status);
         while (g.pause) sleep(1); 
     }
 
-    // Release resources
+    for (int i=0; i<10; i++)
+        destroy_junction (&g.junctions[i]);
+    
+    // Destroy ringback (if need): conf, conf master port, null port, tonegen 
 
+    
+
+    if (g.media_endpt)
+    {
+        status = pjmedia_endpt_destroy (g.media_endpt);
+        if (status != PJ_SUCCESS)
+            pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pjmedia_endpt_destroy()");
+    }
+
+    if (g.exit_mutex)
+    {
+        status = pj_mutex_destroy (g.exit_mutex);
+        if (status != PJ_SUCCESS)
+            pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pj_mutex_destroy()");
+    }
+
+    if (g.nullport) 
+        pjmedia_port_destroy (g.nullport);
+
+
+    if (g.tonegen_port)
+        pjmedia_port_destroy (g.tonegen_port);
+
+    if (g.conf)
+         pjmedia_conf_destroy (g.conf);
+
+    if (g.sip_endpt)
+        pjsip_endpt_destroy (g.sip_endpt);
+
+    if (g.pool)
+        pj_pool_release (g.pool);
+    
+    pj_caching_pool_destroy (&g.cp);
+
+    
+    printf ("\n\n\n");
+    PJ_LOG (5, (APPNAME, "Application has been finished normally"));
     return 0;
 }

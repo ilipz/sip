@@ -9,9 +9,10 @@ numrecord_t *get_numrecord (char *num)
 	return NULL;
 }
 
-pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
+pj_bool_t make_call(numrecord_t *tel, leg_t *l, pjmedia_sdp_session *local_sdp)//, pjmedia_sdp_session *sdp)
 {
-    // TODO: here if any function fail then make junction disabled
+    const char *THIS_FUNCTION = "make_call()";
+	// TODO: here if any function fail then make junction disabled
 	//return PJ_FALSE;
     char dest_uri[64];
     sprintf (dest_uri, "sip:%s@%s", tel->num, tel->addr);
@@ -22,7 +23,8 @@ pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
     pjsip_tx_data *tdata;
     pj_status_t status;
     
-
+	char FULL_INFO[64];
+	sprintf (FULL_INFO, "%s with %s leg in junc#%u", THIS_FUNCTION, l->type == IN ? "IN" : "OUT", l->junction_index);
 	
     /* Create UAC dialog */
     status = pjsip_dlg_create_uac( pjsip_ua_instance(), 
@@ -32,10 +34,13 @@ pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
 				   &dst_uri,		/* remote target    */
 				   &dlg);		/* dialog	    */
     if (status != PJ_SUCCESS) 
-        return PJ_FALSE;
+    {
+		pj_perror (5, FULL_INFO, status, "pjsip_dlg_create_uac()");
+		return PJ_FALSE;
+	}
 
     /* Create SDP */
-    create_sdp( dlg->pool, l, &sdp);
+    //create_sdp( dlg->pool, l, &sdp);
 
     /* Create the INVITE session. */
     status = pjsip_inv_create_uac( dlg, l->current.local_sdp, 0, &l->current.inv);
@@ -81,7 +86,8 @@ pj_status_t create_sdp( pj_pool_t *pool,
 			       leg_t *l,
 			       pjmedia_sdp_session **p_sdp)
 {
-    pj_status_t status;
+    return PJ_SUCCESS;
+	pj_status_t status;
     pj_time_val tv;
     pjmedia_sdp_session *sdp;
     pjmedia_sdp_media *m;

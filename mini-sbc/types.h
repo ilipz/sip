@@ -35,7 +35,7 @@ typedef struct leg
     
     pjmedia_transport   *media_transport;
     struct leg         *reverse;
-    void  *junction;
+    int              junction_index;
     enum leg_type {IN=0, OUT=1} type;
 } leg_t;
 
@@ -91,8 +91,8 @@ struct global_var
     pjmedia_port    *tonegen_port;
     unsigned        tonegen_port_id;
 
-    pj_bool_t       pause;
-
+    int      pause;
+    unsigned long long req_id;
     pjmedia_conf    *conf;
     pjmedia_master_port *conf_mp;
     pjmedia_port    *conf_null_port;
@@ -102,6 +102,7 @@ struct global_var
     struct codec audio_codec;
     int to_quit;
 
+    pj_mutex_t *exit_mutex;
 };
 
 

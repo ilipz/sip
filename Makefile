@@ -27,8 +27,7 @@ task3:
 	gcc task3.o -o task3 $(PJ_FLAG)
 
 task4:
-	$(CC) mini_sbc.c 
-	gcc mini_sbc.o -o ms $(PJ_FLAG)
+	make -f mini-sbc/Makefile -j2
 
 task1-arm:
 	$(ARM_CC) task1.c 
