@@ -44,8 +44,8 @@ pjmedia_master_port *conf_mp;
 pjmedia_endpt       *media_endpt;
 
 
-const pj_time_val   delay1 = {10, 0};
-const pj_time_val   delay2 = {10, 0};
+const pj_time_val   delay1 = {4, 0};
+const pj_time_val   delay2 = {60, 0};
 pj_uint32_t            timer_count=0;
 
 pjmedia_conf        *conf=NULL;

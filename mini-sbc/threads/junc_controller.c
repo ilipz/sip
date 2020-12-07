@@ -18,6 +18,17 @@ int junc_controller (void *p)
     PJ_LOG (5, (FULL_INFO, "Enterence"));
 
     pj_status_t status;
+
+    while (j->out_leg.current.inv->state != PJSIP_INV_STATE_CONFIRMED); // INVALID
+    
+    pjsip_tx_data *tdata;
+    status = pjsip_inv_answer(j->in_leg.current.inv,  200, NULL, NULL, &tdata);
+    if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+    
+    status = pjsip_inv_send_msg(j->in_leg.current.inv, tdata);
+     if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
     
     while (1)
     {

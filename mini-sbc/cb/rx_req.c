@@ -293,7 +293,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
     if (status != PJ_SUCCESS)
             halt ("rx_req.c");
     
-    //status = pjsip_inv_send_msg(inv, tdata);
+    status = pjsip_inv_send_msg(inv, tdata);
      if (status != PJ_SUCCESS)
             halt ("rx_req.c");
 
@@ -337,6 +337,8 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
         }
         PJ_LOG (5, (FULL_INFO, "Sent 503 Internal Error due to OUT leg call failed", reason));
     }
+
+    /*while (j->out_leg.current.inv->state != PJSIP_INV_STATE_CONFIRMED); // INVALID
     
     status = pjsip_inv_answer(inv,  200, NULL, NULL, &tdata);
     if (status != PJ_SUCCESS)
@@ -344,7 +346,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
     
     status = pjsip_inv_send_msg(inv, tdata);
      if (status != PJ_SUCCESS)
-            halt ("rx_req.c");
+            halt ("rx_req.c"); */
 
     // if failed then disable junc
     
