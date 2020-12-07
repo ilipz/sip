@@ -44,8 +44,8 @@ pjmedia_master_port *conf_mp;
 pjmedia_endpt       *media_endpt;
 
 
-const pj_time_val   delay1 = {3, 0};
-const pj_time_val   delay2 = {40, 0};
+const pj_time_val   delay1 = {10, 0};
+const pj_time_val   delay2 = {10, 0};
 pj_uint32_t            timer_count=0;
 
 pjmedia_conf        *conf=NULL;
@@ -626,7 +626,7 @@ static void call_on_media_update (pjsip_inv_session *inv, pj_status_t status)
 
 	
     
-    status = pjmedia_conf_connect_port (conf, ringback_conf_id, tmp->conf_id, 128);
+    status = pjmedia_conf_connect_port (conf, player_conf_id, tmp->conf_id, 128);
     if (PJ_SUCCESS != status)
     {
             pj_perror (5, THIS_FUNCTION, status, "pjmedia_conf_connect_port()");
@@ -1494,6 +1494,7 @@ void free_slot_by_inv (pjsip_inv_session *inv)
 void accept_call(pj_timer_heap_t *ht, pj_timer_entry *e) // callback
 {
     const char THIS_FUNCTION[] = "accept_call()";
+	
     
     pj_status_t status;
     

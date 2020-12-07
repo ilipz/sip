@@ -209,7 +209,9 @@ void init_juncs ()
         
         for (int retry=0; retry<=1500; retry++)
         {
-            status = pjmedia_transport_udp_create2 (g.media_endpt, "in_leg", NULL, rtp_port++, 0, &j->in_leg.media_transport);
+            char name[22];
+            sprintf (name, "in leg in j#%d", current_junc);
+            status = pjmedia_transport_udp_create2 (g.media_endpt, name, NULL, rtp_port++, 0, &j->in_leg.media_transport);
             if (PJ_SUCCESS == status)
             {
                 j->state = READY;
@@ -225,7 +227,9 @@ void init_juncs ()
             
         for (int retry=0; retry<=1500; retry++)
         {
-            status = pjmedia_transport_udp_create2 (g.media_endpt, "in_leg", &g.local_addr, rtp_port++, 0, &j->out_leg.media_transport);
+            char name[22];
+            sprintf (name, "out leg in j#%d", current_junc);
+            status = pjmedia_transport_udp_create2 (g.media_endpt, name, &g.local_addr, rtp_port++, 0, &j->out_leg.media_transport);
             if (PJ_SUCCESS == status)
             {
                 j->state = READY;
@@ -266,7 +270,9 @@ void init_juncs ()
                 halt ("init_juncs()::pjmedia_transport_close()");
             }
             continue;
-        } 
+        }
+        pjmedia_transport_media_start (j->in_leg.media_transport, 0, 0, 0, 0);
+        pjmedia_transport_media_start (j->out_leg.media_transport, 0, 0, 0, 0); 
     }   
 }
 

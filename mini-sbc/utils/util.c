@@ -9,9 +9,11 @@ numrecord_t *get_numrecord (char *num)
 	return NULL;
 }
 
-pj_bool_t make_call(numrecord_t *tel, leg_t *l, pjmedia_sdp_session *local_sdp)//, pjmedia_sdp_session *sdp)
+// TODO: make_call() using only for calling OUT leg.
+pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp) 
 {
     const char *THIS_FUNCTION = "make_call()";
+    //return PJ_TRUE;
 	// TODO: here if any function fail then make junction disabled
 	//return PJ_FALSE;
     char dest_uri[64];
@@ -43,7 +45,24 @@ pj_bool_t make_call(numrecord_t *tel, leg_t *l, pjmedia_sdp_session *local_sdp)/
     //create_sdp( dlg->pool, l, &sdp);
 
     /* Create the INVITE session. */
-    status = pjsip_inv_create_uac( dlg, l->current.local_sdp, 0, &l->current.inv);
+
+    pjmedia_transport_info mti;
+    pjmedia_sock_info   media_sock_info;
+	pjmedia_transport_info_init(&mti);
+    pjmedia_sdp_session *local_sdp1;
+	status = pjmedia_transport_get_info(l->media_transport, &mti);
+    if (PJ_SUCCESS != status)
+    {
+        pj_perror (5, THIS_FUNCTION, status, "pjmedia_transport_get_info()");
+    }
+
+	pj_memcpy(&media_sock_info, &mti.sock_info,
+		  sizeof(pjmedia_sock_info));
+    
+    status = pjmedia_endpt_create_sdp(g.media_endpt, dlg->pool, 1, &media_sock_info, &local_sdp1);
+    if (status != PJ_SUCCESS)
+        halt ("make_call()");
+    status = pjsip_inv_create_uac( dlg, local_sdp1, 0, &l->current.inv);
     if (status != PJ_SUCCESS) 
     {
 	    pjsip_dlg_terminate(dlg);

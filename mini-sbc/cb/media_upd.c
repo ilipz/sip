@@ -12,6 +12,9 @@ void on_media_update (pjsip_inv_session *inv, pj_status_t status)
 
     leg_t *l = (leg_t*) inv->mod_data[g.mod_app.id];
 
+    if (l == NULL)
+        halt ("on_media_upd()");
+
     char FULL_INFO[64];
     sprintf (FULL_INFO, "%s at %s leg in junc#%d", THIS_FUNCTION, l->type == IN ? "IN" : "OUT", l->junction_index);
 

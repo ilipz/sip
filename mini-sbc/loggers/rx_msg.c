@@ -2,6 +2,7 @@
 extern struct global_var g;
 pj_bool_t logger_rx_msg(pjsip_rx_data *rdata)
 {
+	return PJ_FALSE;
     PJ_LOG(4,(APPNAME, "RX %d bytes %s from %s:%d:\n"
 			 "%s\n"
 			 "--end msg--",

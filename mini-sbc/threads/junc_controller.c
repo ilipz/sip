@@ -21,8 +21,11 @@ int junc_controller (void *p)
     
     while (1)
     {
-        if (j->out_leg.current.sdp_neg_done == PJ_TRUE && j->in_leg.current.sdp_neg_done == PJ_TRUE)
+        if (j->out_leg.current.inv && j->in_leg.current.inv) 
+        if (j->out_leg.current.inv->state == PJSIP_INV_STATE_CONFIRMED && j->in_leg.current.inv->state == PJSIP_INV_STATE_CONFIRMED)
         {
+            
+            PJ_LOG (5, (FULL_INFO, "Starting master port connection"));
             status = pjmedia_master_port_set_uport (j->mp_in_out, j->in_leg.current.stream_port);
             if (status != PJ_SUCCESS)
             {
@@ -39,6 +42,8 @@ int junc_controller (void *p)
                 return 0;      
             }
 
+            
+
             status = pjmedia_master_port_start (j->mp_in_out); 
             if (status != PJ_SUCCESS)
             {
@@ -46,7 +51,7 @@ int junc_controller (void *p)
                 j->state = DISABLED;
                 return 0;      
             }
-            
+//return 0;
             status = pjmedia_master_port_set_uport (j->mp_out_in, j->out_leg.current.stream_port);
             if (status != PJ_SUCCESS)
             {
@@ -71,7 +76,7 @@ int junc_controller (void *p)
                 return 0;      
             }
 
-            PJ_LOG (5, (FULL_INFO, PJ_LOG_ERROR"Junction master ports started. Job done. Exit"));
+            PJ_LOG (5, (FULL_INFO, "Junction master ports started. Job done. Exit"));
             return 0;
         }
         

@@ -67,7 +67,8 @@ void free_leg (leg_t *l)
 
     pjsip_tx_data *tdata=NULL;;
     pj_status_t status;
-   
+    if (l->current.stream)
+        pjmedia_stream_destroy (l->current.stream);
     if (l->current.inv)
     {
         if (l->current.inv->state != PJSIP_INV_STATE_DISCONNECTED)

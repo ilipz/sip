@@ -1,3 +1,4 @@
+// Catching errors temporarly switched to fast-fail
 #include "rx_req.h"
 
 extern struct global_var g;
@@ -72,12 +73,12 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
 	    return PJ_TRUE;
     }
 
-    status = pjsip_endpt_respond_stateless(g.sip_endpt, rdata, 100, NULL, NULL, NULL);
+    /*status = pjsip_endpt_respond_stateless(g.sip_endpt, rdata, 100, NULL, NULL, NULL);
     if (status != PJ_SUCCESS)
     {
         pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pjsip_endpt_respond_stateless() with 100 TRYING for request #%llu", req_id);
         return PJ_TRUE;
-    }
+    } */
 
     // Verify that we can handle the request. 
     options = 0;
@@ -137,6 +138,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
 		return PJ_TRUE;
 	}
 
+
     // Find available junction
     
     status = PJ_SUCCESS;
@@ -164,6 +166,8 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
     {
         PJ_LOG (5, (THIS_FUNCTION, "Cann't find free junction for req #%llu", req_id));
         status = pjsip_endpt_respond_stateless (g.sip_endpt, rdata, 486, NULL, NULL, NULL);
+        if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
         if (sip_uri == NULL)
         {
             pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pjsip_endpt_respond_stateless() with 486 for request #%llu", req_id);
@@ -172,12 +176,14 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
     }
 
     sprintf (FULL_INFO, "Req %llu in junc#%u (IN leg)", req_id, j->index);
-	
+	PJ_LOG (5, (FULL_INFO, "Connecting to %s with telnum %s", tel->addr, tel->num));
     /* Create UAS dialog */
-    PJ_LOG (5, (FULL_INFO, "Creating uAS dialog..."));
+    PJ_LOG (5, (FULL_INFO, "Creating UAS dialog..."));
     g.local_contact.ptr[g.local_contact.slen] = '\0';
     status = pjsip_dlg_create_uas_and_inc_lock( pjsip_ua_instance(), rdata, &g.local_contact, &dlg);
-    if (status != PJ_SUCCESS) 
+    if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+    /*if (status != PJ_SUCCESS) 
     {
 	    pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_dlg_create_uas_and_inc_lock()");
         
@@ -188,7 +194,7 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
             pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_endpt_respond_stateless() with 500 in creating UAS dialog");
         }
 	    return PJ_TRUE;
-    }
+    }*/
 
     /* Create UAS invite session */
 
@@ -196,11 +202,13 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
 	pjmedia_transport_info_init(&mti);
 	status = pjmedia_transport_get_info(j->in_leg.media_transport, &mti);
     if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+    /*if (status != PJ_SUCCESS)
     {
         pj_perror (5, FULL_INFO, status, "pjmedia_transport_get_info()");
         send_internal_error ("pjmedia_transport_get_info()");
         return PJ_TRUE;
-    }
+    }*/
 
     pj_memcpy(&media_sock_info, &mti.sock_info, sizeof(pjmedia_sock_info));
 	
@@ -208,16 +216,20 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
     pjmedia_sdp_session *local_sdp;
 	status = pjmedia_endpt_create_sdp(g.media_endpt, dlg->pool, 1, &media_sock_info, &local_sdp);
     if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+    /*if (status != PJ_SUCCESS)
     {
         pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjmedia_endpt_create_sdp()");
         send_internal_error ("pjmedia_endpt_create_sdp()");
         return PJ_TRUE;
-    }
+    }*/
 
-    j->out_leg.current.local_sdp = local_sdp;
+    
 
     status = pjsip_inv_create_uas (dlg, rdata, local_sdp, 0, &inv);
-    if (status != PJ_SUCCESS) 
+    if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+    /*if (status != PJ_SUCCESS) 
     {
 	    status = pjsip_dlg_create_response(dlg, rdata, 500, NULL, &tdata);
         if (status != PJ_SUCCESS)
@@ -235,7 +247,22 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
         
         pjsip_dlg_dec_lock(dlg);
 	return PJ_TRUE;
-    }
+    } */
+    status = pjsip_inv_initial_answer(inv, rdata, 100, NULL, NULL, &tdata);
+    if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+    
+    status = pjsip_inv_send_msg(inv, tdata);
+    if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+    /*
+        if (status != PJ_SUCCESS)
+        {
+            pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_inv_send_msg() with 100");
+            send_internal_error ("pjsip_inv_send_msg() with 100");
+            return PJ_TRUE;
+        } */
+
     /*status = pjsip_inv_initial_answer(inv, rdata, 180, 
 				      NULL, NULL, &tdata);
     pj_perror (5, "inv 180", status, "a");
@@ -262,33 +289,46 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
     /* Send the 200 response. */
 
 	// Here need sync both shoulders before
-    if (make_call (tel, &j->out_leg, local_sdp) == PJ_TRUE)
+    status = pjsip_inv_answer(inv,  180, NULL, NULL, &tdata);
+    if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+    
+    //status = pjsip_inv_send_msg(inv, tdata);
+     if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+
+    if (make_call (tel, &j->out_leg) == PJ_TRUE)
     {
         status = pj_thread_create (g.pool, "junc_controller", junc_controller, j, 0, 0, &j->controller_thread);
         if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+
+        /*if (status != PJ_SUCCESS)
         {
             pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pj_thread_create() for junc controller");
             send_internal_error ("pj_thread_create()");
             j->state = DISABLED;
-        }
+        } */
 
-        status = pjsip_inv_initial_answer(inv, rdata, 183, NULL, NULL, &tdata);
-        if (status != PJ_SUCCESS)
+        
+        /*if (status != PJ_SUCCESS)
         {
             pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_inv_initial_answer() with 183");
             send_internal_error ("pjsip_inv_initial_answer()");
             return PJ_TRUE;
-        }
-        status = pjsip_inv_send_msg(inv, tdata);
-        if (status != PJ_SUCCESS)
+        }*/
+        
+        /*if (status != PJ_SUCCESS)
         {
             pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_inv_send_msg() with 183");
             send_internal_error ("pjsip_inv_send_msg() with 183");
             return PJ_TRUE;
-        }
+        } */
     }
     else
     {
+        halt ("rx_req.c");
+        return PJ_TRUE;
         status = pjsip_endpt_respond_stateless(g.sip_endpt, rdata, 503, NULL, NULL, NULL);
         if (status != PJ_SUCCESS)
         {
@@ -298,6 +338,13 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
         PJ_LOG (5, (FULL_INFO, "Sent 503 Internal Error due to OUT leg call failed", reason));
     }
     
+    status = pjsip_inv_answer(inv,  200, NULL, NULL, &tdata);
+    if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
+    
+    status = pjsip_inv_send_msg(inv, tdata);
+     if (status != PJ_SUCCESS)
+            halt ("rx_req.c");
 
     // if failed then disable junc
     
