@@ -286,8 +286,8 @@ void init_juncs ()
             }
             continue;
         }
-        pjmedia_transport_media_start (j->in_leg.media_transport, 0, 0, 0, 0);
-        pjmedia_transport_media_start (j->out_leg.media_transport, 0, 0, 0, 0); 
+        //pjmedia_transport_media_start (j->in_leg.media_transport, 0, 0, 0, 0);
+        //pjmedia_transport_media_start (j->out_leg.media_transport, 0, 0, 0, 0); 
     }   
 }
 

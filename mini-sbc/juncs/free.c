@@ -77,6 +77,7 @@ void free_leg (leg_t *l)
     pjsip_tx_data *tdata=NULL;;
     pj_status_t status;
 
+    pjmedia_transport_media_stop (l->media_transport);
 
     if (l->current.stream)
     {

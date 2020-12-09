@@ -47,7 +47,8 @@ void on_media_update (pjsip_inv_session *inv, pj_status_t status)
             pj_perror (5, FULL_INFO, status, "pjmedia_sdp_neg_get_active_remote()");
             return;
     } 
-
+    
+    pjmedia_transport_media_start (l->media_transport, l->current.inv->pool, local_sdp, remote_sdp, 0);
     // Create stream info based on the media audio SDP. 
     status = pjmedia_stream_info_from_sdp(&stream_info, inv->pool, g.media_endpt, local_sdp, remote_sdp, 0);
     if (PJ_SUCCESS != status)
