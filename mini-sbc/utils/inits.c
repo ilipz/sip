@@ -168,6 +168,20 @@ pj_bool_t init_media()
     status = pjmedia_null_port_create (g.pool, 8000, 1, 160, 16, &g.nullport);
     if (status != PJ_SUCCESS)
         emergency_exit ("init_media()::pjmedia_null_port_create()", &status);
+    
+    status = pjmedia_conf_create (g.pool, 14, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE, &g.conf);
+    if (status != PJ_SUCCESS)
+        emergency_exit ("init_media()::pjmedia_conf_create()", &status);
+
+    pjmedia_port *conf_p0 = pjmedia_conf_get_master_port (g.conf);
+    
+    pjmedia_master_port_create (g.pool, g.nullport, conf_p0, 0, &g.conf_mp);
+
+    pjmedia_master_port_start (g.conf_mp);
+
+
+    
+
 
 }
 

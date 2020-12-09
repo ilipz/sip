@@ -31,6 +31,7 @@ typedef struct leg
             pjmedia_sdp_session *local_sdp;
             pjmedia_sdp_session *remote_sdp;
             pj_bool_t sdp_neg_done;
+            unsigned stream_conf_id;
         } current;
     
     pjmedia_transport   *media_transport;

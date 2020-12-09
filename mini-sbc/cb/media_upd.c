@@ -84,6 +84,9 @@ void on_media_update (pjsip_inv_session *inv, pj_status_t status)
             pj_perror (5, FULL_INFO, status, "pjmedia_stream_get_port()");
             return;
     }
+    
+    pjmedia_conf_add_port (g.conf, l->current.inv->pool, l->current.stream_port, NULL, &l->current.stream_conf_id);
+    
 
     l->current.sdp_neg_done = PJ_TRUE;
     
