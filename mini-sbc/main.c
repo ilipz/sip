@@ -1,3 +1,13 @@
+/*
+    ROADMAP:
+    1) Fixes
+    2) Configure (JSON, arg options)
+    3) Different net interfaces
+    -------- Optional
+    + Ringback (KPV)
+    + Direct RTP stream (faster and no codecs requires)
+    + On/off leg media streams; record to .wav
+*/
 #include "types.h"
 #include "cb/forked.h"
 #include "cb/media_upd.h"
@@ -28,8 +38,8 @@ struct global_var g;
 numrecord_t nums[10] = 
 {
     {"05", "10.25.109.55:7060"},
-    {"ilip", "127.0.0.1:12345"},
-    {"note", "10.25.109.54:5060"},
+    {"vedro", "192.168.41.250:15060"},
+    {"ku", "192.168.40.220:15060"},
     {"vedro", "192.168.41.250:15060"}
 };
 
