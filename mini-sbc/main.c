@@ -9,6 +9,8 @@
     + On/off leg media streams; record to .wav
     + Extended logging: log to file, logging from siprtp.c
     + Threads: free junctions in other thread
+-----------------------------------------------------------------
+- So problems with pjmedia_frames in transport. Should try close media transport after any call
 */
 #include "types.h"
 #include "cb/forked.h"

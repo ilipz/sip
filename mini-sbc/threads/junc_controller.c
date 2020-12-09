@@ -83,6 +83,20 @@ int junc_controller (void *p)
                 if (status != PJ_SUCCESS)
                     emergency_exit (FULL_INFO, &status);
 
+                status = pjmedia_stream_start(j->in_leg.current.stream);
+                if (PJ_SUCCESS != status)
+                {
+                    pj_perror (5, FULL_INFO, status, "pjmedia_stream_start()");
+                    return 0;
+                } 
+
+                status = pjmedia_stream_start(j->out_leg.current.stream);
+                if (PJ_SUCCESS != status)
+                {
+                    pj_perror (5, FULL_INFO, status, "pjmedia_stream_start()");
+                    return 0;
+                } 
+
                 PJ_LOG (5, (FULL_INFO, "Finish connecting legs in conference bridge. Exit"));
                 
                 return 0;

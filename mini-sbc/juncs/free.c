@@ -32,6 +32,7 @@ void free_junction (junction_t *j)
 
     if (j->out_leg.current.stream_conf_id < 32 && j->in_leg.current.stream_conf_id < 32) 
     {
+        // TODO: Move the disconnects and removes in free_leg (so if conf_id==32 then don't disconnect/remove)
         status = pjmedia_conf_disconnect_port (g.conf, j->in_leg.current.stream_conf_id, j->out_leg.current.stream_conf_id); // CATCH
         if (status != PJ_SUCCESS)
             emergency_exit ("conf disconnect in-out port",  &status);
