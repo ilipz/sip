@@ -30,7 +30,7 @@ typedef struct leg
             pjmedia_rtcp_session rtcp_session;
             pjmedia_sdp_session *local_sdp;
             pjmedia_sdp_session *remote_sdp;
-            pj_bool_t sdp_neg_done;
+            
             unsigned stream_conf_id;
         } current;
     
@@ -44,7 +44,7 @@ typedef struct junction
 {
     leg_t  in_leg;
     leg_t  out_leg;
-    pjmedia_master_port *mp_in_out, *mp_out_in;
+    
     pj_thread_t *controller_thread;
     enum state_t {BUSY=0, READY, DISABLED} state;
     pj_mutex_t  *mutex;

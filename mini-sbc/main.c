@@ -1,12 +1,14 @@
 /*
     ROADMAP:
-    1) Fixes
+    1) Fixes: segfaults, catching bad PJ returned status, log 
     2) Configure (JSON, arg options)
     3) Different net interfaces
     -------- Optional
     + Ringback (KPV)
     + Direct RTP stream (faster and no codecs requires)
     + On/off leg media streams; record to .wav
+    + Extended logging: log to file, logging from siprtp.c
+    + Threads: free junctions in other thread
 */
 #include "types.h"
 #include "cb/forked.h"
@@ -108,18 +110,16 @@ int main (int argc, char **argv)
     }
 
     for (int i=0; i<10; i++)
+        free_junction (&g.junctions[i]);
+
+    for (int i=0; i<10; i++)
         destroy_junction (&g.junctions[i]);
     
     // Destroy ringback (if need): conf, conf master port, null port, tonegen 
 
     
 
-    if (g.media_endpt)
-    {
-        status = pjmedia_endpt_destroy (g.media_endpt);
-        if (status != PJ_SUCCESS)
-            pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pjmedia_endpt_destroy()");
-    }
+    
 
     if (g.exit_mutex)
     {
@@ -129,14 +129,21 @@ int main (int argc, char **argv)
     }
 
     if (g.nullport) 
-        pjmedia_port_destroy (g.nullport);
+        pjmedia_port_destroy (g.nullport); // CATCH
 
 
     if (g.tonegen_port)
-        pjmedia_port_destroy (g.tonegen_port);
+        pjmedia_port_destroy (g.tonegen_port); // CATCH
 
     if (g.conf)
-         pjmedia_conf_destroy (g.conf);
+         pjmedia_conf_destroy (g.conf); // CATCH
+
+    if (g.media_endpt)
+    {
+        status = pjmedia_endpt_destroy (g.media_endpt);
+        if (status != PJ_SUCCESS)
+            pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pjmedia_endpt_destroy()");
+    }
 
     if (g.sip_endpt)
         pjsip_endpt_destroy (g.sip_endpt);

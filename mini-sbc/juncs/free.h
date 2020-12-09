@@ -2,7 +2,7 @@
 #define FREE_H
 
 #include "../types.h"
-
+#include "../utils/exits.h"
 
 
 void free_junction    (junction_t *j);

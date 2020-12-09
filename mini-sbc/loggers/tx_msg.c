@@ -2,7 +2,7 @@
 extern struct global_var g;
 pj_status_t logger_tx_msg(pjsip_tx_data *tdata)
 {
-    
+    // here need global flag about tx logging
     return PJ_SUCCESS;
     /* Important note:
      *	tp_info field is only valid after outgoing messages has passed

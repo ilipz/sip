@@ -169,16 +169,23 @@ pj_bool_t init_media()
     if (status != PJ_SUCCESS)
         emergency_exit ("init_media()::pjmedia_null_port_create()", &status);
     
-    status = pjmedia_conf_create (g.pool, 14, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE, &g.conf);
+    status = pjmedia_conf_create (g.pool, 30, 8000, 1, 160, 16, PJMEDIA_CONF_NO_DEVICE, &g.conf);
     if (status != PJ_SUCCESS)
         emergency_exit ("init_media()::pjmedia_conf_create()", &status);
 
     pjmedia_port *conf_p0 = pjmedia_conf_get_master_port (g.conf);
     
-    pjmedia_master_port_create (g.pool, g.nullport, conf_p0, 0, &g.conf_mp);
+    status = pjmedia_master_port_create (g.pool, g.nullport, conf_p0, 0, &g.conf_mp);
+    if (status != PJ_SUCCESS)
+    {
+        emergency_exit ("init_media() :: Error creating master port for conf bridge", &status);
+    }
 
-    pjmedia_master_port_start (g.conf_mp);
-
+    status = pjmedia_master_port_start (g.conf_mp);
+    if (status != PJ_SUCCESS)
+    {
+        emergency_exit ("init_media() :: Error starting master port for conf bridge", &status);
+    }
 
     
 
@@ -202,13 +209,7 @@ void init_juncs ()
         printf ("\n\n\n%d\n\n\n", current_junc);
         j->state = DISABLED;
 
-        status = pjmedia_master_port_create (g.pool, g.nullport, g.nullport, 0, &j->mp_in_out);
-        if (status != PJ_SUCCESS)
-            emergency_exit ("init_juncs()::pjmedia_master_port_create()", &status);
-
-        status = pjmedia_master_port_create (g.pool, g.nullport, g.nullport, 0, &j->mp_out_in);
-        if (status != PJ_SUCCESS)
-            emergency_exit ("init_juncs()::pjmedia_master_port_create()", &status);
+        
 
         nullize_leg (&j->in_leg);
         j->in_leg.type = IN;

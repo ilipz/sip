@@ -3,49 +3,58 @@ extern struct global_var g;
 void free_junction (junction_t *j)
 {
     const char *THIS_FUNCTION = "free_junction()";
-
+    pj_status_t status;
+    char FULL_INFO[64];
     if (j == NULL)
     {
         PJ_LOG (5, (THIS_FUNCTION, PJ_LOG_ERROR"gotten empty junc pointer"));
         return;
     }
 
-    char FULL_INFO[64];
-    sprintf (FULL_INFO, "%s for junc#%d", THIS_FUNCTION, j->index);
     
+    sprintf (FULL_INFO, "%s for junc#%d", THIS_FUNCTION, j->index);
+
+    if (j->state == READY)
+        return;
+
+    if ( (status = pj_mutex_trylock (j->mutex)) != PJ_SUCCESS)
+    {
+        if (status != PJ_EBUSY)
+            pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pj_mutex_trylock()");
+        return; 
+    }
+
     if (j->state == DISABLED)
     {
         PJ_LOG (5, (FULL_INFO, PJ_LOG_ERROR"junc disabled"));
         return;
     }
 
-    pj_status_t status;
-
-    status = pjmedia_master_port_stop (j->mp_in_out);
-    if (status != PJ_SUCCESS)
+    if (j->out_leg.current.stream_conf_id < 32 && j->in_leg.current.stream_conf_id < 32) 
     {
-        pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjmedia_master_port_stop() for mp_in_out. Junc will disabled");
-        j->state = DISABLED;
+        status = pjmedia_conf_disconnect_port (g.conf, j->in_leg.current.stream_conf_id, j->out_leg.current.stream_conf_id); // CATCH
+        if (status != PJ_SUCCESS)
+            emergency_exit ("conf disconnect in-out port",  &status);
+
+        status = pjmedia_conf_disconnect_port (g.conf, j->out_leg.current.stream_conf_id, j->in_leg.current.stream_conf_id); // CATCH
+        if (status != PJ_SUCCESS)
+            emergency_exit ("conf disconnect out-in port",  &status);
+
+        status = pjmedia_conf_remove_port (g.conf, j->out_leg.current.stream_conf_id); // CATCH
+        if (status != PJ_SUCCESS)
+            emergency_exit ("conf remove out port",  &status);
+
+        status = pjmedia_conf_remove_port (g.conf, j->in_leg.current.stream_conf_id); // CATCH
+        if (status != PJ_SUCCESS)
+            emergency_exit ("conf remove in port",  &status);
     }
-        
+    
 
-    status = pjmedia_master_port_stop (j->mp_out_in);
-    if (status != PJ_SUCCESS)
-    {
-        pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjmedia_master_port_stop() for mp_out_in. Junc will disabled");
-        j->state = DISABLED;
-    }
-
-    /*status = pj_thread_destroy (j->controller_thread);
-    if (status != PJ_SUCCESS)
-    {
-        pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pj_thread_destroy() for junc controller. Junc will disabled");
-        j->state = DISABLED;
-    } */
-    // if failed then disable junction
     free_leg (&j->out_leg);
     free_leg (&j->in_leg);
-    
+
+    pj_mutex_unlock (j->mutex); // CATCH
+
     if (j->state != DISABLED) 
         j->state = READY;
 }
@@ -67,8 +76,20 @@ void free_leg (leg_t *l)
 
     pjsip_tx_data *tdata=NULL;;
     pj_status_t status;
+
+
     if (l->current.stream)
-        pjmedia_stream_destroy (l->current.stream);
+    {
+        status = pjmedia_stream_destroy (l->current.stream); // CATCH
+        if (status != PJ_SUCCESS)
+            emergency_exit ("stream destroy", &status);
+    }
+    else
+    {
+        halt ("l->current stream");
+    }
+    
+        
     if (l->current.inv)
     {
         if (l->current.inv->state != PJSIP_INV_STATE_DISCONNECTED)
@@ -92,11 +113,12 @@ void free_leg (leg_t *l)
             }
         }
         else
-            PJ_LOG (5, (FULL_INFO, "inv state is DISCONNECTED. No terminate msg created"));        
+            PJ_LOG (5, (FULL_INFO, PJ_LOG_ERROR"inv state is DISCONNECTED. No terminate msg created"));        
     }
     else
         PJ_LOG (5, (FULL_INFO, PJ_LOG_ERROR"gotten empty leg inv pointer (l->current.inv ==NULL)"));
     nullize_leg (l);
+    
     PJ_LOG (5, (FULL_INFO, "Exit"));
 }
 
@@ -118,34 +140,30 @@ void nullize_leg (leg_t *l)
     l->current.stream = NULL;
     l->current.stream_info = NULL;
     l->current.stream_port = NULL;
-    l->current.sdp_neg_done = PJ_FALSE;
+    l->current.stream_conf_id = 32;
+
 }
 
 void destroy_junction (junction_t *j)
 {
     if (j == NULL)
     {
-
         return;
     }
 
     if (j->state == DISABLED)
         return;
     
-    if (pj_mutex_trylock (j->mutex) != PJ_SUCCESS)
-    {
-
-        return;
-    }
+    //if (pj_mutex_trylock (j->mutex) != PJ_SUCCESS) return;
 
     j->state = DISABLED;
 
-    pjmedia_master_port_destroy (j->mp_in_out, PJ_FALSE);
+    //pj_mutex_unlock (j->mutex); //CATCH
+    pj_mutex_destroy (j->mutex); //CATCH
+    
 
-    pjmedia_master_port_destroy (j->mp_out_in, PJ_FALSE);
+    pjmedia_transport_close (j->out_leg.media_transport); //CATCH
 
-    pjmedia_transport_close (j->out_leg.media_transport);
-
-    pjmedia_transport_close (j->in_leg.media_transport);
+    pjmedia_transport_close (j->in_leg.media_transport); //CATCH
 
 }

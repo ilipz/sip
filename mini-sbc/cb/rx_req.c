@@ -302,28 +302,6 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
         status = pj_thread_create (g.pool, "junc_controller", junc_controller, j, 0, 0, &j->controller_thread);
         if (status != PJ_SUCCESS)
             halt ("rx_req.c");
-
-        /*if (status != PJ_SUCCESS)
-        {
-            pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pj_thread_create() for junc controller");
-            send_internal_error ("pj_thread_create()");
-            j->state = DISABLED;
-        } */
-
-        
-        /*if (status != PJ_SUCCESS)
-        {
-            pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_inv_initial_answer() with 183");
-            send_internal_error ("pjsip_inv_initial_answer()");
-            return PJ_TRUE;
-        }*/
-        
-        /*if (status != PJ_SUCCESS)
-        {
-            pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_inv_send_msg() with 183");
-            send_internal_error ("pjsip_inv_send_msg() with 183");
-            return PJ_TRUE;
-        } */
     }
     else
     {
@@ -338,17 +316,6 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
         PJ_LOG (5, (FULL_INFO, "Sent 503 Internal Error due to OUT leg call failed", reason));
     }
 
-    /*while (j->out_leg.current.inv->state != PJSIP_INV_STATE_CONFIRMED); // INVALID
-    
-    status = pjsip_inv_answer(inv,  200, NULL, NULL, &tdata);
-    if (status != PJ_SUCCESS)
-            halt ("rx_req.c");
-    
-    status = pjsip_inv_send_msg(inv, tdata);
-     if (status != PJ_SUCCESS)
-            halt ("rx_req.c"); */
-
-    // if failed then disable junc
     
     return PJ_TRUE;
    
