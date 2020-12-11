@@ -81,7 +81,10 @@ struct global_var
     pjsip_module mod_app;
     pj_str_t		 local_uri;
     pj_str_t		 local_contact;
+    pj_str_t		 local_uri2;
+    pj_str_t		 local_contact2;
     pj_str_t		 local_addr;
+    pj_str_t		 local_addr2;
     char             local_contact_s[64];
     pj_uint16_t     sip_port;
 

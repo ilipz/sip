@@ -41,8 +41,8 @@ struct global_var g;
 
 numrecord_t nums[10] = 
 {
-    {"05", "10.25.109.55:7060"},
-    {"vedro", "192.168.41.250:15060"},
+    {"05", "192.168.0.9:7060"},
+    {"vedro", "192.168.0.3:15060"},
     {"ku", "192.168.40.220:15060"},
     {"vedro", "192.168.41.250:15060"}
 };
@@ -51,7 +51,10 @@ int main (int argc, char **argv)
 {
     PJ_LOG (5, (APPNAME, "Application has been started"));
     printf ("\n\n\n");
-
+    
+        pj_str_t addr = pj_str(argv[1]);
+        g.local_addr = addr;
+    
     static const char *THIS_FUNCTION = "main()";
     pj_status_t status;
 

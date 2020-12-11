@@ -43,11 +43,12 @@ int junc_controller (void *p)
     {
         PJ_LOG (5, (FULL_INFO, "Exit due to OUT leg invite state (DISSCONECTED or NULL)"));
         pjsip_tx_data *tdata;
-
+        printf ("\n\n\n\nALLALALALAL\n\n\n\n");
+        sleep (5);
         status = pjsip_inv_answer(j->in_leg.current.inv,  603, NULL, NULL, &tdata);
         if (status != PJ_SUCCESS)
             emergency_exit (FULL_INFO, &status);
-    
+
         status = pjsip_inv_send_msg(j->in_leg.current.inv, tdata);
         if (status != PJ_SUCCESS)
             emergency_exit (FULL_INFO, &status);
