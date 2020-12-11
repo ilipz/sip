@@ -23,6 +23,6 @@ void emergency_exit (char *sender, pj_status_t *status)
 
 void halt (char *sender)
 {
-    printf ("\n\n\nHALT CALLED FROM %s\n\n\n", sender==NULL ? "unknown" : sender);
+    printf ("\n\n\nHALT CALLED. REASON: %s\n\n\n", sender==NULL ? "unknown" : sender);
     exit (1);
 }

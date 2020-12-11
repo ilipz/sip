@@ -51,12 +51,16 @@ int main (int argc, char **argv)
 {
     PJ_LOG (5, (APPNAME, "Application has been started"));
     printf ("\n\n\n");
+    static const char *THIS_FUNCTION = "main()";
+    pj_status_t status;
+
+    // TODO: Set global vars defaults
+    // TODO: Parse args
     
         pj_str_t addr = pj_str(argv[1]);
         g.local_addr = addr;
     
-    static const char *THIS_FUNCTION = "main()";
-    pj_status_t status;
+    
 
     status = pj_init ();
     if (status != PJ_SUCCESS)
