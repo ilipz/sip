@@ -77,32 +77,36 @@ void init_sip()
     
 
     char local_uri[64];
+    pj_str_t *tmp_addr_in = &g.local_addr_in;
 
-	if (!pj_strcmp2(&g.local_addr_in, "empty")) 
-    {
+	if (!pj_strcmp2(&g.local_addr_in, "empty"))
+        tmp_addr_in = NULL;
+     
+    
 
 	    addrname.host = g.local_addr_in;
 	    addrname.port = g.sip_port_in;
 
-	    status = pj_sockaddr_in_init(&addr, &g.local_addr_in, (pj_uint16_t)g.sip_port_in);
+	    status = pj_sockaddr_in_init(&addr, tmp_addr_in, (pj_uint16_t)g.sip_port_in);
         if (status != PJ_SUCCESS)
             emergency_exit ("init_sip()::pj_sockaddr_in_init()", &status);
         
-        status = pjsip_udp_transport_start( g.sip_endpt, &addr, (g.local_addr_in.slen ? &addrname:NULL), 2, &tp);
+        status = pjsip_udp_transport_start( g.sip_endpt, &addr, (tmp_addr_in ? &addrname:NULL), 2, &tp);
         if (status != PJ_SUCCESS)
             emergency_exit ("init_sip()::pjsip_udp_transport_start()", &status);
 
 	    PJ_LOG(3,(APPNAME, "SIP UDP listening on %.*s:%d",
 		  (int)tp->local_name.host.slen, tp->local_name.host.ptr,
 		  tp->local_name.port));
-        
+
+        g.local_addr_in = tp->local_name.host;
 
         pj_ansi_sprintf (local_uri, "sip:%s:%d", g.local_addr_in.ptr, g.sip_port_in);
         memcpy (g.local_uri_in_c, local_uri, sizeof(local_uri));
         g.local_contact_in = pj_str (g.local_uri_in_c);
         g.local_uri_in = g.local_contact_in;
         
-	}
+
 
     if (pj_strcmp2(&g.local_addr_out, "empty"))
     {
@@ -244,8 +248,8 @@ void init_juncs ()
         junction_t *j = &g.junctions[current_junc];
         pj_status_t status;
         j->index = current_junc;
-        printf ("\n\n\n%d\n\n\n", current_junc);
-        j->state = DISABLED;
+        //printf ("\n\n\n%d\n\n\n", current_junc);
+        j->state = READY;
 
         
 
@@ -267,9 +271,14 @@ void init_juncs ()
             status = pjmedia_transport_udp_create2 (g.media_endpt, name, &g.local_addr_in, rtp_port_in++, 0, &j->in_leg.media_transport);
             if (PJ_SUCCESS == status)
             {
-                j->state = READY;
+                PJ_LOG (5, (APPNAME, "Media socket assigned to %s:%d (junc#%d/IN)", g.local_addr_in.ptr, rtp_port_in-1, current_junc));
                 break;
             }
+            else
+            {
+                //pj_perror (5, THIS_FUNCTION, status, "pjmedia_transport_udp_create2() with %s:%u", g.local_addr_in.ptr, rtp_port_in);
+            }
+            
         }
 
         if (j->state == DISABLED)
@@ -285,13 +294,18 @@ void init_juncs ()
             status = pjmedia_transport_udp_create2 (g.media_endpt, name, &g.local_addr_out, rtp_port_out++, 0, &j->out_leg.media_transport);
             if (PJ_SUCCESS == status)
             {
-                j->state = READY;
+                PJ_LOG (5, (APPNAME, "Media socket assigned to %s:%d (junc#%d/IN)", g.local_addr_out.ptr, rtp_port_out-1, current_junc));
                 break;
             }
+            else
+            {
+                //pj_perror (5, THIS_FUNCTION, status, "pjmedia_transport_udp_create2() with %s:%u", g.local_addr_out.ptr, rtp_port_out);
+            }
+            
 
         }
 
-        if (j->state == DISABLED)
+        /*if (j->state == DISABLED)
         {
             pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pjmedia_transport_udp_create2() for OUT leg in junc#%d", j->index);
             status = pjmedia_transport_close (j->in_leg.media_transport);
@@ -301,13 +315,13 @@ void init_juncs ()
                 halt ("init_juncs()::pjmedia_transport_close()");
             }
             continue;
-        }
+        } */
         
         status = pj_mutex_create (g.pool, "mutex", PJ_MUTEX_SIMPLE, &j->mutex);
         if (status != PJ_SUCCESS)
         {
             pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pj_mutex_create for junc#%d", j->index);
-            j->state = DISABLED;
+            /*j->state = DISABLED;
 
             status = pjmedia_transport_close (j->in_leg.media_transport);
             if (status != PJ_SUCCESS)
@@ -322,7 +336,7 @@ void init_juncs ()
                 pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pjmedia_transport_close() for out leg in junc#%d", j->index);
                 halt ("init_juncs()::pjmedia_transport_close()");
             }
-            continue;
+            continue;*/
         }
         //pjmedia_transport_media_start (j->in_leg.media_transport, 0, 0, 0, 0);
         //pjmedia_transport_media_start (j->out_leg.media_transport, 0, 0, 0, 0); 
