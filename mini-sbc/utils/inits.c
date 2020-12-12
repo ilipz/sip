@@ -52,8 +52,7 @@ void init_sip()
         emergency_exit ("init_sip()::pjsip_endpt_create()", &status);
        
 
-    g.sip_port = 5060;
-    g.rtp_start_port = 4000;
+    
     /* Add UDP transport. */
     {
 	pj_sockaddr_in addr, addr2;
@@ -63,67 +62,73 @@ void init_sip()
 	pj_bzero(&addr, sizeof(addr));
 	addr.sin_family = pj_AF_INET();
 	addr.sin_addr.s_addr = 0;
-	addr.sin_port = pj_htons((pj_uint16_t)g.sip_port); 
+	addr.sin_port = pj_htons((pj_uint16_t)g.sip_port_in); 
 
     pj_bzero(&addr2, sizeof(addr2));
 	addr2.sin_family = pj_AF_INET();
 	addr2.sin_addr.s_addr = 0;
-	addr2.sin_port = pj_htons((pj_uint16_t)g.sip_port); 
+	addr2.sin_port = pj_htons((pj_uint16_t)g.sip_port_out); 
 
-    g.local_addr2 = pj_str("192.168.0.8");
+    
 
-    addrname2.host = g.local_addr2;
-    addrname2.port = g.sip_port;
+    addrname2.host = g.local_addr_out;
+    addrname2.port = g.sip_port_out;
 
-    status = pj_sockaddr_in_init(&addr2, &g.local_addr2, (pj_uint16_t)g.sip_port);
-        if (status != PJ_SUCCESS)
-            emergency_exit ("init_sip()::pj_sockaddr_in_init() 2", &status);
+    
 
-    status = pjsip_udp_transport_start( g.sip_endpt, &addr2, &addrname2, 2, &tp);
-    if (status != PJ_SUCCESS)
-        emergency_exit ("init_sip()::pjsip_udp_transport_start() 2", &status);
+    char local_uri[64];
 
-	if (g.local_addr.slen) 
+	if (!pj_strcmp2(&g.local_addr_in, "empty")) 
     {
 
-	    addrname.host = g.local_addr;
-	    addrname.port = g.sip_port;
+	    addrname.host = g.local_addr_in;
+	    addrname.port = g.sip_port_in;
 
-	    status = pj_sockaddr_in_init(&addr, &g.local_addr, (pj_uint16_t)g.sip_port);
+	    status = pj_sockaddr_in_init(&addr, &g.local_addr_in, (pj_uint16_t)g.sip_port_in);
         if (status != PJ_SUCCESS)
             emergency_exit ("init_sip()::pj_sockaddr_in_init()", &status);
         
-	}
-    else
-    {
-        halt ("local addr not specified");
-    }
-    
+        status = pjsip_udp_transport_start( g.sip_endpt, &addr, (g.local_addr_in.slen ? &addrname:NULL), 2, &tp);
+        if (status != PJ_SUCCESS)
+            emergency_exit ("init_sip()::pjsip_udp_transport_start()", &status);
 
-	status = pjsip_udp_transport_start( g.sip_endpt, &addr, (g.local_addr.slen ? &addrname:NULL), 2, &tp);
-    if (status != PJ_SUCCESS)
-        emergency_exit ("init_sip()::pjsip_udp_transport_start()", &status);
-
-	PJ_LOG(3,(APPNAME, "SIP UDP listening on %.*s:%d",
+	    PJ_LOG(3,(APPNAME, "SIP UDP listening on %.*s:%d",
 		  (int)tp->local_name.host.slen, tp->local_name.host.ptr,
 		  tp->local_name.port));
-    g.local_addr = tp->local_name.host;
+        
 
-    char local_uri[64];
-    pj_ansi_sprintf (local_uri, "sip:%s:%d", g.local_addr.ptr, g.sip_port);
-    
-    memcpy (g.local_contact_s, local_uri, sizeof(local_uri));
-    g.local_contact = pj_str (g.local_contact_s);
-    g.local_uri = g.local_contact;
+        pj_ansi_sprintf (local_uri, "sip:%s:%d", g.local_addr_in.ptr, g.sip_port_in);
+        memcpy (g.local_uri_in_c, local_uri, sizeof(local_uri));
+        g.local_contact_in = pj_str (g.local_uri_in_c);
+        g.local_uri_in = g.local_contact_in;
+        
+	}
 
-    pj_bzero (local_uri, sizeof(local_uri));
+    if (pj_strcmp2(&g.local_addr_out, "empty"))
+    {
+        status = pj_sockaddr_in_init(&addr2, &g.local_addr_out, (pj_uint16_t)g.sip_port_out);
+        if (status != PJ_SUCCESS)
+            emergency_exit ("init_sip()::pj_sockaddr_in_init() 2", &status);
 
-    pj_ansi_sprintf (local_uri, "sip:%s:%d", g.local_addr2.ptr, g.sip_port);
-    
-    char local_contact_s[64];
-    memcpy (local_contact_s, local_uri, sizeof(local_uri));
-    g.local_contact2 = pj_str (local_contact_s);
-    g.local_uri2 = g.local_contact;
+        status = pjsip_udp_transport_start( g.sip_endpt, &addr2, &addrname2, 2, &tp);
+        if (status != PJ_SUCCESS)
+            emergency_exit ("init_sip()::pjsip_udp_transport_start() 2", &status);
+
+        pj_ansi_sprintf (local_uri, "sip:%s:%d", g.local_addr_out.ptr, g.sip_port_out);
+        memcpy (g.local_uri_out_c, local_uri, sizeof(local_uri));
+        g.local_contact_out = pj_str (g.local_uri_out_c);
+        g.local_uri_in = g.local_contact_out;
+    }
+    else
+    {
+        PJ_LOG (5, (THIS_FUNCTION, PJ_LOG_ERROR"OUT net interface isn't defined. Using IN net interface for both legs"));
+
+        g.local_uri_out = g.local_uri_in;
+        g.local_contact_out = g.local_contact_in;
+        g.local_addr_out = g.local_addr_in;
+        g.rtp_port_out = g.rtp_port_in;
+    }
+
 
     }
     /* 
@@ -197,7 +202,7 @@ pj_bool_t init_media()
     if (status != PJ_SUCCESS)
         emergency_exit ("init_media()::pjmedia_codec_g711_init()", &status);
 
-    status = pjmedia_null_port_create (g.pool, 8000, 1, 160, 16, &g.nullport);
+    status = pjmedia_null_port_create (g.pool, 8000, 1, 160, 16, &g.conf_null_port);
     if (status != PJ_SUCCESS)
         emergency_exit ("init_media()::pjmedia_null_port_create()", &status);
     
@@ -207,7 +212,7 @@ pj_bool_t init_media()
 
     pjmedia_port *conf_p0 = pjmedia_conf_get_master_port (g.conf);
     
-    status = pjmedia_master_port_create (g.pool, g.nullport, conf_p0, 0, &g.conf_mp);
+    status = pjmedia_master_port_create (g.pool, g.conf_null_port, conf_p0, 0, &g.conf_mp);
     if (status != PJ_SUCCESS)
     {
         emergency_exit ("init_media() :: Error creating master port for conf bridge", &status);
@@ -231,7 +236,8 @@ void init_juncs ()
     const char *THIS_FUNCTION = "init_juncs()";
     /////
     pj_status_t status;
-    pj_uint16_t rtp_port = (pj_uint16_t)(g.rtp_start_port & 0xFFFE);
+    pj_uint16_t rtp_port_in = (pj_uint16_t)(g.rtp_port_in & 0xFFFE);
+    pj_uint16_t rtp_port_out = (pj_uint16_t)(g.rtp_port_out & 0xFFFE);
 
     for (int current_junc=0; current_junc<10; current_junc++)
     {
@@ -258,7 +264,7 @@ void init_juncs ()
         {
             char name[22];
             sprintf (name, "in leg in j#%d", current_junc);
-            status = pjmedia_transport_udp_create2 (g.media_endpt, name, NULL, rtp_port++, 0, &j->in_leg.media_transport);
+            status = pjmedia_transport_udp_create2 (g.media_endpt, name, &g.local_addr_in, rtp_port_in++, 0, &j->in_leg.media_transport);
             if (PJ_SUCCESS == status)
             {
                 j->state = READY;
@@ -276,7 +282,7 @@ void init_juncs ()
         {
             char name[22];
             sprintf (name, "out leg in j#%d", current_junc);
-            status = pjmedia_transport_udp_create2 (g.media_endpt, name, &g.local_addr2, rtp_port++, 0, &j->out_leg.media_transport);
+            status = pjmedia_transport_udp_create2 (g.media_endpt, name, &g.local_addr_out, rtp_port_out++, 0, &j->out_leg.media_transport);
             if (PJ_SUCCESS == status)
             {
                 j->state = READY;
