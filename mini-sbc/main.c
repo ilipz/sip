@@ -26,7 +26,6 @@
 #include "utils/exits.h"
 #include "utils/inits.h"
 #include "utils/util.h"
-#include <getopt.h>
 
 
 struct codec audio_codecs[] = 
@@ -42,7 +41,7 @@ struct global_var g;
 
 numrecord_t nums[10] = 
 {
-    {"05", "192.168.0.9:7060"},
+    {"05", "10.25.109.55:7060"},
     {"vedro", "192.168.0.3:15060"},
     {"ku", "192.168.40.220:15060"},
     {"vedro", "192.168.41.250:15060"}
@@ -52,130 +51,17 @@ int main (int argc, char **argv)
 {
     PJ_LOG (5, (APPNAME, "Application has been started"));
     printf ("\n\n\n");
+    
+    g.local_addr = pj_str(argv[1]);
+    g.local_addr2 = pj_str(argv[2]);
+
+    // TODO: set defaults
+    // TODO: if arguments then parse them
+    // TODO: else if file (json) then parse it
+
+    
     static const char *THIS_FUNCTION = "main()";
     pj_status_t status;
-    const pj_str_t empty = pj_str("empty"); 
-
-    // TODO: Set global vars defaults
-    g.sip_endpt = NULL;
-    g.media_endpt = NULL;
-    g.pool = NULL;
-    g.tonegen_port = NULL;
-    g.conf = NULL;
-    g.conf_mp = NULL;
-    g.conf_null_port = NULL;
-    g.log_file = NULL;
-    
-    g.local_uri_in = empty;
-    g.local_contact_in = empty;
-    g.local_uri_out = empty;
-    g.local_contact_out = empty;
-    g.local_addr_in = empty;
-    g.local_addr_out = empty;
-
-    g.to_quit = 0;
-    g.pause = 0;
-    g.req_id = 0;
-
-    g.sip_port_in = 5060;
-    g.sip_port_out = 5060;
-    g.rtp_port_out = 4000;
-    g.rtp_port_in = 4000;
-
-    // TODO: Parse args
-    if (argc > 1)
-    {
-        //long rtp_port_, sip_port;
-        pj_uint16_t tmp;
-        while (1)
-        {
-            int option_symbol;
-            int option_index;
-            struct option long_options[] = 
-            {
-                {"sip-port-in", 1, 0, 1000},
-                {"sip-port-out", 1, 0, 2000},
-                {"rtp-port-in", 1, 0, 3000},
-                {"rtp-port-out", 1, 0, 4000},
-                {"ip-in", 1, 0, 5000},
-                {"ip-out", 1, 0, 6000},
-                {0, 0, 0, 0}
-            };
-            option_symbol = getopt_long_only (argc, argv, "~", long_options, &option_index);
-            if (option_symbol == -1)
-                break;
-            if (!optarg)
-            {
-                printf ("\nMissed argument\n\n");
-                return 0;
-            }
-                
-            tmp = (pj_uint16_t) atol (optarg);
-            switch (option_symbol)
-            {
-                case 1000:
-                    if (tmp < 5060)
-                    {
-                        printf ("SIP port value cann't be less than 5060\n");
-                        return 0;
-                    }
-                    g.sip_port_in = tmp;
-                    break;
-                
-                case 2000:
-                    if (tmp < 5060)
-                    {
-                        printf ("SIP port value cann't be less than 5060\n");
-                        return 0;
-                    }
-                    g.sip_port_out = tmp;
-                    break;
-
-                case 3000:
-                    if (tmp < 4000)
-                    {
-                        printf ("RTP port value cann't be less than 4000\n");
-                        return 0;
-                    }
-                    g.rtp_port_in = tmp;
-                    break;
-
-                case 4000:
-                    if (tmp < 4000)
-                    {
-                        printf ("RTP port value cann't be less than 4000\n");
-                        return 0;
-                    }
-                    g.rtp_port_out = tmp;
-                    break;
-                
-                case 5000:
-                    g.local_addr_in = pj_str (optarg);
-                    break;
-                
-                case 6000:
-                    g.local_addr_out = pj_str (optarg);
-                    break;
-                
-                default:
-                    printf ("Invalid arguments\n");
-                    return 0;
-
-
-                    
-            }
-            if (option_symbol == -1)
-                break;
-        }
-    }
-    else
-    {
-        // TODO: parse json
-    }
-    
-        
-    
-    
 
     status = pj_init ();
     if (status != PJ_SUCCESS)
@@ -203,7 +89,8 @@ int main (int argc, char **argv)
 
     init_exits ();
 
-    
+    g.to_quit = 0;
+    g.pause = 0;
 
     // Create: conf bridge, nullport, conf master port, tonegen  
 
@@ -251,8 +138,8 @@ int main (int argc, char **argv)
             pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pj_mutex_destroy()");
     }
 
-    if (g.conf_null_port) 
-        pjmedia_port_destroy (g.conf_null_port); // CATCH
+    if (g.nullport) 
+        pjmedia_port_destroy (g.nullport); // CATCH
 
 
     if (g.tonegen_port)

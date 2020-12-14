@@ -28,11 +28,13 @@ pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
 	
     /* Create UAC dialog */
     status = pjsip_dlg_create_uac( pjsip_ua_instance(), 
-				   &g.local_uri_out,	/* local URI	    */
-				   &g.local_contact_out,	/* local Contact    */
+				   &g.local_uri2,	/* local URI	    */
+				   &g.local_contact2,	/* local Contact    */
 				   &dst_uri,		/* remote URI	    */
 				   &dst_uri,		/* remote target    */
 				   &dlg);		/* dialog	    */
+
+    printf ("\n\n%s\n\n\n", g.local_uri.ptr);
     if (status != PJ_SUCCESS) 
     {
 		pj_perror (5, FULL_INFO, status, "pjsip_dlg_create_uac()");
@@ -136,7 +138,7 @@ pj_status_t create_sdp( pj_pool_t *pool,
     sdp->conn = pj_pool_zalloc (pool, sizeof(pjmedia_sdp_conn));
     sdp->conn->net_type = pj_str("IN");
     sdp->conn->addr_type = pj_str("IP4");
-    sdp->conn->addr = g.local_addr_out;
+    sdp->conn->addr = g.local_addr;
 
 
     /* SDP time and attributes. */

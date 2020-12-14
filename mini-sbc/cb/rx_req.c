@@ -179,8 +179,8 @@ pj_bool_t on_rx_request (pjsip_rx_data *r)
 	PJ_LOG (5, (FULL_INFO, "Connecting to %s with telnum %s", tel->addr, tel->num));
     /* Create UAS dialog */
     PJ_LOG (5, (FULL_INFO, "Creating UAS dialog..."));
-    g.local_contact_in.ptr[g.local_contact_in.slen] = '\0';
-    status = pjsip_dlg_create_uas_and_inc_lock( pjsip_ua_instance(), rdata, &g.local_contact_in, &dlg);
+    g.local_contact.ptr[g.local_contact.slen] = '\0';
+    status = pjsip_dlg_create_uas_and_inc_lock( pjsip_ua_instance(), rdata, &g.local_contact, &dlg);
     if (status != PJ_SUCCESS)
             halt ("rx_req.c");
     /*if (status != PJ_SUCCESS) 

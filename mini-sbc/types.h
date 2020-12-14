@@ -73,40 +73,39 @@ struct global_var
     pjmedia_endpt   *media_endpt;
 
     pj_caching_pool cp;
-    pj_pool_t       *pool;  
+    pj_pool_t       *pool;
 
-    char local_uri_in_c[128];
-    char local_uri_out_c[128];
-    
+    pjmedia_port *nullport;
+
     pjsip_module mod_logger;
     pjsip_module mod_app;
+    pj_str_t		 local_uri;
+    pj_str_t		 local_contact;
+    pj_str_t		 local_uri2;
+    pj_str_t		 local_contact2;
+    pj_str_t		 local_addr;
+    pj_str_t		 local_addr2;
+    char             local_contact_in_s[64];
+    char             local_contact_out_s[64];
 
-    pj_str_t		 local_uri_in;
-    pj_str_t		 local_contact_in;
-    pj_str_t		 local_uri_out;
-    pj_str_t		 local_contact_out;
-    pj_str_t		 local_addr_in;
-    pj_str_t		 local_addr_out;
-    
-    pj_uint16_t     sip_port_in;
-    pj_uint16_t     rtp_port_in;
-    pj_uint16_t     sip_port_out;
-    pj_uint16_t     rtp_port_out;
+    pj_uint16_t     sip_port;
+    pj_uint16_t     sip_port2;
 
     junction_t      junctions[10];
     numrecord_t     numbook[20];
 
+    pjmedia_conf    *tonegen_conf;
     pjmedia_port    *tonegen_port;
     unsigned        tonegen_port_id;
 
     int      pause;
     unsigned long long req_id;
-
     pjmedia_conf    *conf;
     pjmedia_master_port *conf_mp;
     pjmedia_port    *conf_null_port;
     FILE *log_file;
-    
+    unsigned rtp_start_port;
+    unsigned rtp2_start_port;
 
     struct codec audio_codec;
     int to_quit;
