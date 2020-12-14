@@ -27,6 +27,9 @@
 #include "utils/inits.h"
 #include "utils/util.h"
 
+static char json_doc1[] =
+"\"String\" : \"Stroka\"";
+
 
 struct codec audio_codecs[] = 
 {
@@ -87,6 +90,40 @@ int main (int argc, char **argv)
         halt ("pj_pool_create()");
     }
 
+    pj_pool_t *pool;
+    pj_json_elem *elem;
+    char *out_buf;
+    unsigned size;
+    pj_json_err_info err;
+
+    pj_pool_factory mem;
+    pool = g.pool;
+
+    size = (unsigned)strlen(json_doc1);
+    elem = pj_json_parse(pool, json_doc1, &size, &err);
+    if (!elem) {
+	PJ_LOG(1, (APPNAME, "  Error: json_verify_1() parse error"));
+	;
+    }
+
+    pj_json_elem *head = elem;
+    
+    printf ("%s\n", head->value.str.ptr);
+
+    return 0;
+    size = (unsigned)strlen(json_doc1) * 2;
+    out_buf = pj_pool_alloc(pool, size);
+
+    if (pj_json_write(elem, out_buf, &size)) {
+	PJ_LOG(1, (APPNAME, "  Error: json_verify_1() write error"));
+	
+    }
+
+    PJ_LOG(3,(APPNAME, "Json document:\n%s", out_buf));
+    pj_pool_release(pool);
+    return 0;
+
+    return 0; // temporary exit util pj_json tested
     init_exits ();
 
     g.to_quit = 0;
