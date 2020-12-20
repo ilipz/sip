@@ -11,6 +11,15 @@
     + Threads: free junctions in other thread
 -----------------------------------------------------------------
 - So problems with pjmedia_frames in transport. Should try close media transport after any call
+
+-----------------------------------------------------------------
+Down references how work in simple JSON notation file
+{
+    "begin": "begin", <---- start of list (head->value.children.next; _||_.next - to get 2nd elem of list and etc.) 
+    ................,
+    "end": "end"      <---- finish of list (head->value.children.prev; _||_.prev - to get LAST-1 elem of list and etc.)
+}
+
 */
 #include "types.h"
 #include "cb/forked.h"
@@ -27,8 +36,33 @@
 #include "utils/inits.h"
 #include "utils/util.h"
 
-static char json_doc1[] =
-"\"String\" : \"Stroka\"";
+static char *json_doc1;/* = 
+"{\
+    \"Object\": {\
+       \"Integer\":  800,\
+       \"Negative\":  -12,\
+       \"Float\": -7.2,\
+       \"String\":  \"A\\tString with tab\",\
+       \"Object2\": {\
+           \"True\": true,\
+           \"False\": false,\
+           \"Null\": null\
+       },\
+       \"Array1\": [116, false, \"string\", {}],\
+       \"Array2\": [\
+	    {\
+        	   \"Float\": 123.,\
+	    },\
+	    {\
+		   \"Float\": 123.,\
+	    }\
+       ]\
+     },\
+   \"Integer\":  800,\
+   \"Array1\": [116, false, \"string\"]\
+}\
+";*/
+
 
 
 struct codec audio_codecs[] = 
@@ -90,27 +124,37 @@ int main (int argc, char **argv)
         halt ("pj_pool_create()");
     }
 
-    pj_pool_t *pool;
+    pj_pool_t *pool = g.pool;
     pj_json_elem *elem;
     char *out_buf;
-    unsigned size;
     pj_json_err_info err;
-
-    pj_pool_factory mem;
-    pool = g.pool;
-
+    FILE *json_file = fopen ("ms.json", "rt");
+    if (json_file == NULL)
+        emergency_exit ("Cann't open json config", NULL);
+    fseek (json_file, 0L, SEEK_END);
+    long size = ftell (json_file);
+    rewind (json_file);
+    json_doc1 = pj_pool_zalloc (pool, 4000);
+    fread (json_doc1, sizeof(char), size+1, json_file);
+    json_doc1[size+1] = '\0';
+   
+    
+    //sleep (10);
     size = (unsigned)strlen(json_doc1);
+    printf ("\n%s\n\n", json_doc1);
     elem = pj_json_parse(pool, json_doc1, &size, &err);
+    //sleep (10);
     if (!elem) {
 	PJ_LOG(1, (APPNAME, "  Error: json_verify_1() parse error"));
 	;
     }
 
-    pj_json_elem *head = elem;
+    pj_json_elem *head = elem->value.children.prev;
     
-    printf ("%s\n", head->value.str.ptr);
+    
+    //printf ("VAL: %f\n", head->value.children.prev->value.num);// str.slen,head->value.children.next->value.str.ptr);
 
-    return 0;
+    //return 0;
     size = (unsigned)strlen(json_doc1) * 2;
     out_buf = pj_pool_alloc(pool, size);
 
@@ -122,8 +166,7 @@ int main (int argc, char **argv)
     PJ_LOG(3,(APPNAME, "Json document:\n%s", out_buf));
     pj_pool_release(pool);
     return 0;
-
-    return 0; // temporary exit util pj_json tested
+/////////////////////////////////////////////////////////////////////
     init_exits ();
 
     g.to_quit = 0;
