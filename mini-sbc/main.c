@@ -1,7 +1,7 @@
 /*
     ROADMAP:
     1) Fixes: segfaults, catching bad PJ returned status, log 
-    2) Configure (JSON, arg options)
+    2) JSON: add telnums array reading
     3) Different net interfaces
     -------- Optional
     + Ringback (KPV)
@@ -17,9 +17,19 @@ Down references how work in simple JSON notation file
 {
     "begin": "begin", <---- start of list (head->value.children.next; _||_.next - to get 2nd elem of list and etc.) 
     ................,
-    "end": "end"      <---- finish of list (head->value.children.prev; _||_.prev - to get LAST-1 elem of list and etc.)
+    "end": "end"      <---- finish of list (head->value.children.prev; _||_.prev - to get LAST-1 elem of list and etc.); last->next==NULL
 }
 
+*/
+
+/*
+    Arguments (keys in JSON config too):
+    ip-in
+    ip-out
+    sip-in
+    sip-out
+    rtp-in
+    rtp-out
 */
 #include "types.h"
 #include "cb/forked.h"
@@ -35,6 +45,8 @@ Down references how work in simple JSON notation file
 #include "utils/exits.h"
 #include "utils/inits.h"
 #include "utils/util.h"
+
+
 
 static char *json_doc1;/* = 
 "{\
@@ -91,11 +103,10 @@ int main (int argc, char **argv)
     
     g.local_addr = pj_str(argv[1]);
     g.local_addr2 = pj_str(argv[2]);
-
+    g.json_filename = "ms.json";
     // TODO: set defaults
     // TODO: if arguments then parse them
     // TODO: else if file (json) then parse it
-
     
     static const char *THIS_FUNCTION = "main()";
     pj_status_t status;
@@ -124,48 +135,148 @@ int main (int argc, char **argv)
         halt ("pj_pool_create()");
     }
 
-    pj_pool_t *pool = g.pool;
-    pj_json_elem *elem;
-    char *out_buf;
-    pj_json_err_info err;
-    FILE *json_file = fopen ("ms.json", "rt");
-    if (json_file == NULL)
-        emergency_exit ("Cann't open json config", NULL);
-    fseek (json_file, 0L, SEEK_END);
-    long size = ftell (json_file);
-    rewind (json_file);
-    json_doc1 = pj_pool_zalloc (pool, 4000);
-    fread (json_doc1, sizeof(char), size+1, json_file);
-    json_doc1[size+1] = '\0';
-   
+    if (argc > 1) // arguments required 
+    {
     
-    //sleep (10);
-    size = (unsigned)strlen(json_doc1);
-    printf ("\n%s\n\n", json_doc1);
-    elem = pj_json_parse(pool, json_doc1, &size, &err);
-    //sleep (10);
-    if (!elem) {
-	PJ_LOG(1, (APPNAME, "  Error: json_verify_1() parse error"));
-	;
+    }
+    else // parse JSON
+    {
+        const char *func = "JSON parsing";
+        unsigned sip_in=0, sip_out=0, rtp_in=0, rtp_out=0;
+        char ip_in[20] = {0}, ip_out[20] = {0};
+        pj_json_elem *elem;
+        //char *out_buf;
+        pj_json_err_info err;
+        FILE *json_file = fopen (g.json_filename, "rt");
+        if (json_file == NULL)
+            emergency_exit ("Cann't open json config", NULL);
+        fseek (json_file, 0L, SEEK_END);
+        long size = ftell (json_file);
+        rewind (json_file);
+        json_doc1 = pj_pool_zalloc (g.pool, size+10);
+        if (json_doc1 == NULL)
+            emergency_exit (func, NULL);
+        fread (json_doc1, sizeof(char), size+1, json_file);
+        //json_doc1[size+1] = '\0';
+        
+        //sleep (10);
+        //size = (unsigned)strlen(json_doc1);
+        //printf ("\n%s\n\n", json_doc1);
+        elem = pj_json_parse(g.pool, json_doc1, &size, &err);
+        //sleep (10);
+        if (elem == NULL) 
+        {
+	        PJ_LOG(5, (func, PJ_LOG_ERROR"error parsing %s. Using defaults", g.json_filename));
+	        
+        }
+        else
+        {
+            pj_json_elem *head = elem->value.children.next;
+            int t=0;
+            while (1)
+            {
+                printf ("%d\n", t++);
+                if (! (head->type != PJ_JSON_VAL_STRING || head->type != PJ_JSON_VAL_NUMBER) )
+                {
+                    PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid value. Skip '%.*s' key", head->name.slen, head->name.ptr));
+                    head = head->next;continue;
+                }
+
+                if (pj_strcmp2(&head->name, "ip-in") == 0)
+                {
+                    if (pj_strlen (&head->value.str) > 15)
+                    {
+                        PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid value. Must be like 255.255.255.255. Skip '%.*s' key", head->name.slen, head->name.ptr));
+                        head = head->next;continue;
+                    }
+                    pj_memcpy (ip_in, head->value.str.ptr, head->value.str.slen);
+                    head = head->next;continue;
+                }
+
+                else if (pj_strcmp2(&head->name, "ip-out") == 0)
+                {
+                    if (pj_strlen (&head->value.str) > 15)
+                    {
+                        PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid value. Must be like 255.255.255.255. Skip '%.*s' key", head->name.slen, head->name.ptr));
+                        head = head->next;continue;
+                    }
+                    pj_memcpy (ip_out, head->value.str.ptr, head->value.str.slen);
+                    head = head->next;continue;
+                }
+
+                else if (pj_strcmp2(&head->name, "sip-in") == 0)
+                {
+                    if (head->value.num < 5060.0 || head->value.num > 65536.0)
+                    {
+                        PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid value. Must be in [5060; 65536]. Skip '%.*s' key", head->name.slen, head->name.ptr));
+                        head = head->next;continue;
+                    }
+                    sip_in = (unsigned) head->value.num;
+                    head = head->next;continue;
+                }
+
+                else if (pj_strcmp2(&head->name, "sip-out") == 0)
+                {
+                    if (head->value.num < 5060.0 || head->value.num > 65536.0)
+                    {
+                        PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid value. Must be in [5060; 65536]. Skip '%.*s' key", head->name.slen, head->name.ptr));
+                        head = head->next;continue;
+                    }
+                    sip_out = (unsigned) head->value.num;
+                    head = head->next;continue;
+                }
+
+                else if (pj_strcmp2(&head->name, "rtp-out") == 0)
+                {
+                    if (head->value.num < 4000.0 || head->value.num > 65536.0)
+                    {
+                        PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid value. Must be in [4000; 65536]. Skip '%.*s' key", head->name.slen, head->name.ptr));
+                        head = head->next;continue;
+                    }
+                    rtp_out = (unsigned) head->value.num;
+                    head = head->next;continue;
+                }
+
+                else if (pj_strcmp2(&head->name, "rtp-in") == 0)
+                {
+                    if (head->value.num < 4000.0 || head->value.num > 65536.0)
+                    {
+                        PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid value. Must be in [4000; 65536]. Skip '%.*s' key", head->name.slen, head->name.ptr));
+                        head = head->next;continue;
+                    }
+                    rtp_in = (unsigned) head->value.num;
+                    head = head->next;continue;
+                }
+
+                else if (pj_strcmp2(&head->name, "end") == 0)
+                    break;
+                
+                else 
+                {
+                    PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid key: '%.*s'. Skip", head->name.slen, head->name.ptr));
+                    head = head->next;continue;
+                }
+
+                head = head->next;
+                if (head == NULL)
+                    break;
+            }
+            if (rtp_out)
+                g.rtp2_start_port = rtp_out;
+            if (rtp_in)
+                g.rtp_start_port = rtp_in;
+            if (sip_in)
+                g.sip_port = sip_in;
+            if (sip_out)
+                g.sip_port2 = sip_out;
+            if (ip_out[0] != '\0')
+                printf ("Gotten IN ip %s\n", ip_out);
+            return 0;
+        }
+        
     }
 
-    pj_json_elem *head = elem->value.children.prev;
     
-    
-    //printf ("VAL: %f\n", head->value.children.prev->value.num);// str.slen,head->value.children.next->value.str.ptr);
-
-    //return 0;
-    size = (unsigned)strlen(json_doc1) * 2;
-    out_buf = pj_pool_alloc(pool, size);
-
-    if (pj_json_write(elem, out_buf, &size)) {
-	PJ_LOG(1, (APPNAME, "  Error: json_verify_1() write error"));
-	
-    }
-
-    PJ_LOG(3,(APPNAME, "Json document:\n%s", out_buf));
-    pj_pool_release(pool);
-    return 0;
 /////////////////////////////////////////////////////////////////////
     init_exits ();
 

@@ -51,7 +51,7 @@ void init_sip()
     if (status != PJ_SUCCESS)
         emergency_exit ("init_sip()::pjsip_endpt_create()", &status);
        
-
+    // Move to set defaults
     g.sip_port = 5060;
     g.rtp_start_port = 4000;
     /* Add UDP transport. */
@@ -73,7 +73,7 @@ void init_sip()
    
 
     addrname2.host = g.local_addr2;
-    addrname2.port = g.sip_port;
+    addrname2.port = g.sip_port2;
 
     // if second interface isn't defined then use first only
     status = pj_sockaddr_in_init(&addr2, &g.local_addr2, (pj_uint16_t)g.sip_port);
@@ -186,10 +186,10 @@ pj_bool_t init_media()
     /* Initialize media endpoint so that at least error subsystem is properly
      * initialized.
      */
-
+    /*
     g.rtp2_start_port = 4000;
     g.rtp_start_port  = 4000;
-
+    /*
     status = pjmedia_endpt_create(&g.cp.factory, NULL, 1, &g.media_endpt);
 
     if (status != PJ_SUCCESS)

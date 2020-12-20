@@ -88,6 +88,7 @@ struct global_var
     char             local_contact_in_s[64];
     char             local_contact_out_s[64];
 
+    char            *json_filename;
     pj_uint16_t     sip_port;
     pj_uint16_t     sip_port2;
 

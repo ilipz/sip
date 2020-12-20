@@ -6,5 +6,16 @@
 		{
 			"path": "../../pjproject-2.10"
 		}
-	]
+	],
+	"settings": {
+		"files.associations": {
+			"istream": "c",
+			"ostream": "c",
+			"ratio": "c",
+			"array": "c",
+			"tuple": "c",
+			"type_traits": "c",
+			"utility": "c"
+		}
+	}
 }
