@@ -19,8 +19,8 @@
 #define PJ_LOG_ERROR "!!! ERROR: " 
 #define APPNAME     "TASK 3:"
 
-pj_uint16_t SIP_PORT = 7060;	     // Listening SIP port		
-pj_uint16_t RTP_PORT = 9000;	     // RTP port			
+pj_uint16_t SIP_PORT = 5060;	     // Listening SIP port		
+pj_uint16_t RTP_PORT = 4000;	     // RTP port			
 
 ////////////////// VARS ///////////////////////
 pjsip_endpoint      *sip_endpt; //pjsip_endpt_get_timer_heap
@@ -443,7 +443,7 @@ static pj_bool_t on_rx_request (pjsip_rx_data *rdata)
         emergency_exit ();
     }
 
-    if ( !strcmp (telephone, "666") )
+    if ( !strcmp (telephone, "777") )
         tmp->input_port = warning_conf_id;
     
     else if ( !strcmp (telephone, "1234") )

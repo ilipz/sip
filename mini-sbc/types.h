@@ -69,6 +69,7 @@ typedef struct numrecord
 
 struct global_var
 {
+    enum {ONE_NETWORK=0, TWO_NETWORKS=1} mode;
     pjsip_endpoint  *sip_endpt;
     pjmedia_endpt   *media_endpt;
 
@@ -93,7 +94,7 @@ struct global_var
     pj_uint16_t     sip_port2;
 
     junction_t      junctions[10];
-    numrecord_t     numbook[20];
+    //numrecord_t     numbook[20];
 
     numrecord_t     *numlist;
     int             numlist_q;
@@ -109,9 +110,9 @@ struct global_var
     pjmedia_port    *conf_null_port;
     FILE *log_file;
     unsigned rtp_start_port;
-    unsigned rtp2_start_port;
+    unsigned rtp_start_port2;
 
-    struct codec audio_codec;
+    //struct codec audio_codec;
     int to_quit;
 
     pj_mutex_t *exit_mutex;
