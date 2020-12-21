@@ -3,9 +3,9 @@ extern struct global_var g;
 extern numrecord_t nums[10];
 numrecord_t *get_numrecord (char *num)
 {
-	for (int i=0; i<10; i++)
-		if (!strcmp(nums[i].num, num))
-			return &nums[i];
+	for (int i=0; i<g.numlist_q; i++)
+		if (!strcmp(g.numlist[i].num, num))
+			return &g.numlist[i];
 	return NULL;
 }
 

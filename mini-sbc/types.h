@@ -95,6 +95,9 @@ struct global_var
     junction_t      junctions[10];
     numrecord_t     numbook[20];
 
+    numrecord_t     *numlist;
+    int             numlist_q;
+
     pjmedia_conf    *tonegen_conf;
     pjmedia_port    *tonegen_port;
     unsigned        tonegen_port_id;

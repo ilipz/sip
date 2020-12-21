@@ -88,7 +88,7 @@ struct codec audio_codecs[] =
 
 struct global_var g;
 
-numrecord_t nums[10] = 
+numrecord_t nums[4] = 
 {
     {"05", "10.25.109.55:7060"},
     {"1vedro", "192.168.0.3:15060"},
@@ -248,6 +248,46 @@ int main (int argc, char **argv)
                     head = head->next;continue;
                 }
 
+                else if (pj_strcmp2(&head->name, "telnums") == 0)
+                {
+                    if (head->type != PJ_JSON_VAL_OBJ)
+                    {
+                        PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid \"telnums\" type. Must be an obj. Skip"));
+                        head = head->next;continue;
+                    }
+                    pj_json_elem *tel_head = head->value.children.next;
+                    if (pj_strcmp2 (&tel_head->name, "q") == 0) // if first pair is "q"anity and value
+                    {
+                        if (tel_head->type == PJ_JSON_VAL_NUMBER)
+                        {
+                            if (tel_head->value.num < 1) // use <"q": 0> to disable numbook in JSON and use default one 
+                            {
+                                continue;
+                            } 
+                            g.numlist = pj_pool_zalloc (g.pool, sizeof(numrecord_t) * (int)tel_head->value.num);
+                            g.numlist_q = (int)tel_head->value.num; 
+                            for (int i=0; i<g.numlist_q; i++)
+                            {
+                                tel_head = tel_head->next;
+                                if (pj_strcmp2 (&tel_head->name, "end") == 0)
+                                {
+                                    g.numlist_q = i;
+                                    break;
+                                }
+                                pj_memcpy (g.numlist[i].num, tel_head->name.ptr, tel_head->name.slen);
+                                pj_memcpy (g.numlist[i].addr, tel_head->value.str.ptr, tel_head->value.str.slen);
+                                  
+                            }
+                        }
+                    }
+                    else
+                    {
+                        PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid first pair in obj 'telnums' - must be:\n\"q\": <telephone numbers quanity>"));
+                    }
+                    
+                    head = head->next;continue;
+                }
+
                 else if (pj_strcmp2(&head->name, "end") == 0)
                     break;
                 
@@ -271,6 +311,8 @@ int main (int argc, char **argv)
                 g.sip_port2 = sip_out;
             if (ip_out[0] != '\0')
                 printf ("Gotten IN ip %s\n", ip_out);
+            for (int i=0; i<g.numlist_q; i++)
+                printf ("%s --> %s\n", g.numlist[i].num, g.numlist[i].addr);
             return 0;
         }
         
