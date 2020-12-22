@@ -97,6 +97,12 @@ void free_leg (leg_t *l)
         if (l->current.inv->state != PJSIP_INV_STATE_DISCONNECTED)
         {
             status = pjsip_inv_end_session (l->current.inv, 200, NULL, &tdata);
+            if (l->type == IN)
+                if (tdata)
+                {
+                    tdata->via_addr.host = g.local_addr;
+                    tdata->via_addr.port = g.sip_port;
+                }
             if (status != PJ_SUCCESS)
             {
                 pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_inv_end_session()");
