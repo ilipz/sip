@@ -2,7 +2,7 @@
 #include "rx_req.h"
 
 extern struct global_var g;
-extern  numrecord_t nums[10];
+extern  numrecord_t nums[4];
 
 static pjsip_rx_data *rdata;
 static char *THIS_FUNCTION = "on_rx_request()";

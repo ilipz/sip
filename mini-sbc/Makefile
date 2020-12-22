@@ -1,5 +1,5 @@
 PJ_FLAG = `pkg-config --cflags --libs libpjproject` 
-OBJ = gcc -g -c 
+OBJ = gcc -fno-stack-protector -g -c 
 
 all: cb loggers juncs threads utils main
 	gcc bin/*.o -o ms $(PJ_FLAG)

@@ -233,6 +233,7 @@ int main (int argc, char **argv)
         static char *json_doc1;
         unsigned sip_in=0, sip_out=0, rtp_in=0, rtp_out=0;
         char ip_in[20] = {0}, ip_out[20] = {0};
+        pj_str_t *_ip_in, *_ip_out;
         pj_json_elem *elem;
         //char *out_buf;
         pj_json_err_info err;
@@ -264,7 +265,7 @@ int main (int argc, char **argv)
             int t=0;
             while (1)
             {
-                printf ("%d\n", t++);
+                
                 if (! (head->type != PJ_JSON_VAL_STRING || head->type != PJ_JSON_VAL_NUMBER) )
                 {
                     PJ_LOG (5, (func, PJ_LOG_ERROR"Invalid value. Skip '%.*s' key", head->name.slen, head->name.ptr));
@@ -279,6 +280,7 @@ int main (int argc, char **argv)
                         head = head->next;continue;
                     }
                     pj_memcpy (ip_in, head->value.str.ptr, head->value.str.slen);
+                    _ip_in = &head->value.str;
                     head = head->next;continue;
                 }
 
@@ -290,6 +292,7 @@ int main (int argc, char **argv)
                         head = head->next;continue;
                     }
                     pj_memcpy (ip_out, head->value.str.ptr, head->value.str.slen);
+                    _ip_out = &head->value.str;
                     head = head->next;continue;
                 }
 
@@ -391,18 +394,33 @@ int main (int argc, char **argv)
                     break;
             }
             if (rtp_out)
+            {
                 g.rtp_start_port2 = rtp_out;
-            if (rtp_in)
+                printf ("RTP OUT port: %d\n", rtp_out);
+            }
+                
+            if (rtp_out)
+            {
                 g.rtp_start_port = rtp_in;
+                printf ("RTP IN port: %d\n", rtp_in);
+            }
             if (sip_in)
                 g.sip_port = sip_in;
             if (sip_out)
                 g.sip_port2 = sip_out;
             if (ip_out[0] != '\0')
-                printf ("Gotten IN ip %s\n", ip_out);
+            {
+                g.local_addr2 = pj_str (ip_out);
+            }
+            if (ip_in[0] != '\0')
+            {
+                g.local_addr = *_ip_in;
+            }
+                printf ("Gotten OUT ip %s\n", ip_out);
+
             for (int i=0; i<g.numlist_q; i++)
                 printf ("%s --> %s\n", g.numlist[i].num, g.numlist[i].addr);
-            return 0;
+            //return 0;
         }
         
     } // finish parse json

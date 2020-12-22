@@ -186,10 +186,9 @@ pj_bool_t init_media()
     /* Initialize media endpoint so that at least error subsystem is properly
      * initialized.
      */
-    /*
-    g.rtp2_start_port = 4000;
-    g.rtp_start_port  = 4000;
-    /*
+    
+    
+    
     status = pjmedia_endpt_create(&g.cp.factory, NULL, 1, &g.media_endpt);
 
     if (status != PJ_SUCCESS)
@@ -236,7 +235,7 @@ void init_juncs ()
     /////
     pj_status_t status;
     pj_uint16_t rtp_port = (pj_uint16_t)(g.rtp_start_port & 0xFFFE);
-    pj_uint16_t rtp_port2 = (pj_uint16_t)(g.rtp2_start_port & 0xFFFE);
+    pj_uint16_t rtp_port2 = (pj_uint16_t)(g.rtp_start_port2 & 0xFFFE);
 
     for (int current_junc=0; current_junc<10; current_junc++)
     {
