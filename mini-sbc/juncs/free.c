@@ -30,9 +30,12 @@ void free_junction (junction_t *j)
         return;
     }
 
+    pjmedia_transport_media_stop (j->out_leg.media_transport);
+    pjmedia_transport_media_stop (j->in_leg.media_transport);
     if (j->out_leg.current.stream_conf_id < 32 && j->in_leg.current.stream_conf_id < 32) 
     {
         // TODO: Move the disconnects and removes in free_leg (so if conf_id==32 then don't disconnect/remove)
+        pjmedia_master_port_stop (g.conf_mp);
         status = pjmedia_conf_disconnect_port (g.conf, j->in_leg.current.stream_conf_id, j->out_leg.current.stream_conf_id); // CATCH
         if (status != PJ_SUCCESS)
             emergency_exit ("conf disconnect in-out port",  &status);
@@ -48,6 +51,7 @@ void free_junction (junction_t *j)
         status = pjmedia_conf_remove_port (g.conf, j->in_leg.current.stream_conf_id); // CATCH
         if (status != PJ_SUCCESS)
             emergency_exit ("conf remove in port",  &status);
+        pjmedia_master_port_start (g.conf_mp);
     }
     
 
@@ -78,18 +82,9 @@ void free_leg (leg_t *l)
     pjsip_tx_data *tdata=NULL;;
     pj_status_t status;
 
-    pjmedia_transport_media_stop (l->media_transport);
-    pjmedia_transport_detach (l->media_transport, NULL);
-    if (l->current.stream)
-    {
-        status = pjmedia_stream_destroy (l->current.stream); // CATCH
-        if (status != PJ_SUCCESS)
-            emergency_exit ("stream destroy", &status);
-    }
-    else
-    {
-        halt ("l->current stream");
-    }
+    
+    
+    
     
         
     if (l->current.inv)
@@ -125,6 +120,19 @@ void free_leg (leg_t *l)
     }
     else
         PJ_LOG (5, (FULL_INFO, PJ_LOG_ERROR"gotten empty leg inv pointer (l->current.inv ==NULL)"));
+    if (l->current.stream)
+    {
+        
+        status = pjmedia_stream_destroy (l->current.stream); // CATCH
+        if (status != PJ_SUCCESS)
+            emergency_exit ("stream destroy", &status);
+    }
+    else
+    {
+        halt ("l->current stream");
+    }
+    //pjmedia_transport_detach (l->media_transport, NULL);
+    pjmedia_transport_media_stop (l->media_transport);
     nullize_leg (l);
     
     PJ_LOG (5, (FULL_INFO, "Exit"));

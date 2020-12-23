@@ -76,13 +76,7 @@ int junc_controller (void *p)
             {
                 PJ_LOG (5, (FULL_INFO, "Start connecting legs in conference bridge"));
 
-                status = pjmedia_conf_connect_port (g.conf, j->out_leg.current.stream_conf_id, j->in_leg.current.stream_conf_id, 128);
-                if (status != PJ_SUCCESS)
-                    emergency_exit (FULL_INFO, &status);   
-
-                status = pjmedia_conf_connect_port (g.conf, j->in_leg.current.stream_conf_id, j->out_leg.current.stream_conf_id, 128);
-                if (status != PJ_SUCCESS)
-                    emergency_exit (FULL_INFO, &status);
+                
 
                 status = pjmedia_stream_start(j->in_leg.current.stream);
                 if (PJ_SUCCESS != status)
@@ -97,6 +91,14 @@ int junc_controller (void *p)
                     pj_perror (5, FULL_INFO, status, "pjmedia_stream_start()");
                     return 0;
                 } 
+
+                status = pjmedia_conf_connect_port (g.conf, j->out_leg.current.stream_conf_id, j->in_leg.current.stream_conf_id, 128);
+                if (status != PJ_SUCCESS)
+                    emergency_exit (FULL_INFO, &status);   
+
+                status = pjmedia_conf_connect_port (g.conf, j->in_leg.current.stream_conf_id, j->out_leg.current.stream_conf_id, 128);
+                if (status != PJ_SUCCESS)
+                    emergency_exit (FULL_INFO, &status);
 
                 PJ_LOG (5, (FULL_INFO, "Finish connecting legs in conference bridge. Exit"));
                 
