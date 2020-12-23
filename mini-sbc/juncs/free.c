@@ -79,7 +79,7 @@ void free_leg (leg_t *l)
     pj_status_t status;
 
     pjmedia_transport_media_stop (l->media_transport);
-
+    pjmedia_transport_detach (l->media_transport, NULL);
     if (l->current.stream)
     {
         status = pjmedia_stream_destroy (l->current.stream); // CATCH

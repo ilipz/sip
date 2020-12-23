@@ -89,7 +89,7 @@ int main (int argc, char **argv)
     g.json_filename = json_default;
     g.sip_port = 5060;
     g.sip_port2 = 5060;
-    g.numlist = &nums;
+    g.numlist = nums;
     g.numlist_q = 4;
     g.tonegen_conf = NULL;
     g.tonegen_port = NULL;
@@ -100,7 +100,8 @@ int main (int argc, char **argv)
     g.rtp_start_port = 4000;
     g.to_quit = 0;
     g.exit_mutex = NULL;
-
+    g.local_addr = pj_str("empty");
+    g.local_addr2 = pj_str("empty2");
     status = pj_init ();
     if (status != PJ_SUCCESS)
     {
@@ -137,6 +138,7 @@ int main (int argc, char **argv)
         else if (strcmp (argv[1], "-d") == 0)
         {
             printf ("Using defaults\n");
+            g.json_filename = NULL;
         }
         else //parse arguments, don't search json file
         {
@@ -210,6 +212,7 @@ int main (int argc, char **argv)
                 
                     case 6000:
                         g.local_addr2 = pj_str (optarg);
+                        g.mode = TWO_NETWORKS;
                         break;
 
                     default:
@@ -293,6 +296,7 @@ int main (int argc, char **argv)
                     }
                     pj_memcpy (ip_out, head->value.str.ptr, head->value.str.slen);
                     _ip_out = &head->value.str;
+                    g.mode = TWO_NETWORKS;
                     head = head->next;continue;
                 }
 
@@ -396,30 +400,42 @@ int main (int argc, char **argv)
             if (rtp_out)
             {
                 g.rtp_start_port2 = rtp_out;
-                printf ("RTP OUT port: %d\n", rtp_out);
+                printf ("RTP OUT port set to %d\n", rtp_out);
             }
                 
             if (rtp_out)
             {
                 g.rtp_start_port = rtp_in;
-                printf ("RTP IN port: %d\n", rtp_in);
+                printf ("RTP IN port set to %d\n", rtp_in);
             }
             if (sip_in)
+            {
                 g.sip_port = sip_in;
+                printf ("SIP IN port set to %d\n", sip_in);
+            }
+                
             if (sip_out)
+            {
                 g.sip_port2 = sip_out;
+                printf ("SIP OUT port set to %d\n", sip_out);
+            }
+                
             if (ip_out[0] != '\0')
             {
-                g.local_addr2 = pj_str (ip_out);
+                pj_memcpy (g.local_addr2.ptr, ip_out, sizeof(ip_out));
+                g.local_addr2.slen = sizeof(ip_out);
+                printf ("OUT IP address set to %s\n", ip_out);
             }
             if (ip_in[0] != '\0')
             {
-                g.local_addr = *_ip_in;
+                pj_memcpy (g.local_addr.ptr, ip_in, sizeof(ip_in));
+                g.local_addr.slen = sizeof(ip_in);
+                printf ("IN IP address set to %s\n", ip_out);
             }
-                printf ("Gotten OUT ip %s\n", ip_out);
 
-            for (int i=0; i<g.numlist_q; i++)
-                printf ("%s --> %s\n", g.numlist[i].num, g.numlist[i].addr);
+            if (g.numlist != nums)
+                for (int i=0; i<g.numlist_q; i++)
+                    printf ("%s --> %s\n", g.numlist[i].num, g.numlist[i].addr);
             //return 0;
         }
         

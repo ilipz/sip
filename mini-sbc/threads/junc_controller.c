@@ -33,7 +33,7 @@ int junc_controller (void *p)
             emergency_exit (FULL_INFO, &status); 
     }
 
-
+    while (j->out_leg.current.inv->state != PJSIP_INV_STATE_CONFIRMED);
     if (j->in_leg.current.inv->state == PJSIP_INV_STATE_DISCONNECTED || j->in_leg.current.inv->state == PJSIP_INV_STATE_NULL)
     {
         PJ_LOG (5, (FULL_INFO, "Exit due to IN leg invite state (DISSCONECTED or NULL) before OUT leg confirmed"));
