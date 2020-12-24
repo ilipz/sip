@@ -103,6 +103,7 @@ int main (int argc, char **argv)
     g.local_addr = pj_str("empty");
     g.local_addr2 = pj_str("empty2");
     status = pj_init ();
+    
     if (status != PJ_SUCCESS)
     {
         pj_perror (5, THIS_FUNCTION, status, PJ_LOG_ERROR"pj_init()");
@@ -422,15 +423,17 @@ int main (int argc, char **argv)
                 
             if (ip_out[0] != '\0')
             {
-                pj_memcpy (g.local_addr2.ptr, ip_out, sizeof(ip_out));
-                g.local_addr2.slen = sizeof(ip_out);
+                //pj_memcpy (g.local_addr2.ptr, ip_out, sizeof(ip_out));
+                g.local_addr2 = pj_str (ip_out);
+                //g.local_addr2.slen = sizeof(ip_out);
                 printf ("OUT IP address set to %s\n", ip_out);
             }
             if (ip_in[0] != '\0')
             {
-                pj_memcpy (g.local_addr.ptr, ip_in, sizeof(ip_in));
-                g.local_addr.slen = sizeof(ip_in);
-                printf ("IN IP address set to %s\n", ip_out);
+                //pj_memcpy (g.local_addr.ptr, ip_in, sizeof(ip_in));
+                g.local_addr = pj_str (ip_in);
+                //g.local_addr.slen = sizeof(ip_in);
+                printf ("IN IP address set to %s\n", ip_in);
             }
 
             if (g.numlist != nums)

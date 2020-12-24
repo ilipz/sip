@@ -34,7 +34,8 @@ pj_bool_t make_call(numrecord_t *tel, leg_t *l)//, pjmedia_sdp_session *sdp)
 				   &dst_uri,		/* remote target    */
 				   &dlg);		/* dialog	    */
 
-    printf ("\n\n%s\n\n\n", g.local_uri.ptr);
+    printf ("\n\n%s\n\n\n", g.local_uri2.ptr);
+    
     if (status != PJ_SUCCESS) 
     {
 		pj_perror (5, FULL_INFO, status, "pjsip_dlg_create_uac()");

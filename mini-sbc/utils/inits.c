@@ -47,7 +47,7 @@ void init_sip()
     g.mod_logger = tmp2;
 
     /* Create the endpoint: */
-    status = pjsip_endpt_create(&g.cp.factory, pj_gethostname()->ptr, &g.sip_endpt);
+    status = pjsip_endpt_create(&g.cp.factory, "miniSBC", &g.sip_endpt);
     if (status != PJ_SUCCESS)
         emergency_exit ("init_sip()::pjsip_endpt_create()", &status);
        
@@ -55,7 +55,7 @@ void init_sip()
     /* Add UDP transport. */
     {
 	pj_sockaddr_in addr, addr2;
-	pjsip_host_port addrname, addrname2;
+	pjsip_host_port addrname, addrname2, *addrname_in;
 	pjsip_transport *tp;
 
 	pj_bzero(&addr, sizeof(addr));
@@ -70,14 +70,29 @@ void init_sip()
 	addrname.host = g.local_addr;
 	addrname.port = g.sip_port;
 
-	status = pj_sockaddr_in_init(&addr, (pj_strcmp2(&g.local_addr, "empty")!=0 ? &g.local_addr:NULL), (pj_uint16_t)g.sip_port);
+    pj_str_t *local_addr_in;
+    if ( pj_strcmp2(&g.local_addr, "empty") == 0 )
+    {
+        local_addr_in = NULL;
+        addrname_in = NULL;
+        g.mode = ONE_NETWORK;
+    }
+        
+    else
+    {
+        local_addr_in = &g.local_addr;
+        addrname_in = &addrname;
+    }
+    
+
+	status = pj_sockaddr_in_init(&addr, local_addr_in, (pj_uint16_t)g.sip_port);
     if (status != PJ_SUCCESS)
         emergency_exit ("init_sip()::pj_sockaddr_in_init()", &status);
         
 	
     
 
-	status = pjsip_udp_transport_start( g.sip_endpt, &addr, (pj_strcmp2(&g.local_addr, "empty")!=0 ? &addrname:NULL), 2, &tp);
+	status = pjsip_udp_transport_start( g.sip_endpt, &addr, addrname_in, 2, &tp);
     if (status != PJ_SUCCESS)
         emergency_exit ("init_sip()::pjsip_udp_transport_start()", &status);
 
