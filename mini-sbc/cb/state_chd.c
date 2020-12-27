@@ -25,6 +25,7 @@ void on_state_changed (pjsip_inv_session *inv, pjsip_event *e)
     }
 
     char FULL_INFO[64];
+    char *type = l->type==IN ? "IN" : "OUT";
     sprintf (FULL_INFO, "%s with %s leg in junc#%u", THIS_FUNCTION, l->type == IN ? "IN" : "OUT", l->junction_index);
 
     if (inv->state == PJSIP_INV_STATE_DISCONNECTED) 
@@ -39,6 +40,6 @@ void on_state_changed (pjsip_inv_session *inv, pjsip_event *e)
     } 
     else 
     {
-	    PJ_LOG(5,(FULL_INFO, "\nCall state changed to %s\n", pjsip_inv_state_name(inv->state)));
+	    PJ_LOG(5,(FULL_INFO, "\nCall state changed to %s (%s leg)\n", pjsip_inv_state_name(inv->state), type));
     }    
 }

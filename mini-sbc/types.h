@@ -30,7 +30,7 @@ typedef struct leg
             pjmedia_rtcp_session rtcp_session;
             pjmedia_sdp_session *local_sdp;
             pjmedia_sdp_session *remote_sdp;
-            
+            pj_bool_t sdp_neg_done;
             unsigned stream_conf_id;
         } current;
     

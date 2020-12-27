@@ -16,8 +16,8 @@ void free_junction (junction_t *j)
 
     if (j->state == READY)
         return;
-
-    if ( (status = pj_mutex_trylock (j->mutex)) != PJ_SUCCESS)
+    status = pj_mutex_trylock (j->mutex);
+    if (  status != PJ_SUCCESS)
     {
         if (status != PJ_EBUSY)
             pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pj_mutex_trylock()");
@@ -29,6 +29,8 @@ void free_junction (junction_t *j)
         PJ_LOG (5, (FULL_INFO, PJ_LOG_ERROR"junc disabled"));
         return;
     }
+
+    pj_thread_destroy (j->controller_thread);
 
     if (j->out_leg.current.stream_conf_id < 32 && j->in_leg.current.stream_conf_id < 32) 
     {
@@ -75,10 +77,8 @@ void free_leg (leg_t *l)
 
     PJ_LOG (5, (FULL_INFO, "Enterence"));
 
-    pjsip_tx_data *tdata=NULL;;
+    pjsip_tx_data *tdata=NULL;
     pj_status_t status;
-
-    pjmedia_transport_media_stop (l->media_transport);
 
     if (l->current.stream)
     {
@@ -90,19 +90,18 @@ void free_leg (leg_t *l)
     {
         halt ("l->current stream");
     }
+
+    
+
+    
     
         
     if (l->current.inv)
     {
         if (l->current.inv->state != PJSIP_INV_STATE_DISCONNECTED)
         {
-            status = pjsip_inv_end_session (l->current.inv, 200, NULL, &tdata);
-            if (l->type == IN)
-                if (tdata)
-                {
-                    tdata->via_addr.host = g.local_addr;
-                    tdata->via_addr.port = g.sip_port;
-                }
+            status = pjsip_inv_end_session (l->current.inv, 0, NULL, &tdata);
+            
             if (status != PJ_SUCCESS)
             {
                 pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_inv_end_session()");
@@ -112,19 +111,24 @@ void free_leg (leg_t *l)
             {
                 if (tdata)
                 {
+                    
                     status = pjsip_inv_send_msg (l->current.inv, tdata);
                     if (status != PJ_SUCCESS)
                         pj_perror (5, FULL_INFO, status, PJ_LOG_ERROR"pjsip_inv_send_msg()");
                 }  
                 else
                     PJ_LOG (5, (FULL_INFO, PJ_LOG_ERROR"gotten empty tdata"));
-            }
+            } 
+            
         }
         else
             PJ_LOG (5, (FULL_INFO, PJ_LOG_ERROR"inv state is DISCONNECTED. No terminate msg created"));        
     }
     else
         PJ_LOG (5, (FULL_INFO, PJ_LOG_ERROR"gotten empty leg inv pointer (l->current.inv ==NULL)"));
+    
+    pjmedia_transport_media_stop (l->media_transport);
+
     nullize_leg (l);
     
     PJ_LOG (5, (FULL_INFO, "Exit"));
@@ -149,6 +153,7 @@ void nullize_leg (leg_t *l)
     l->current.stream_info = NULL;
     l->current.stream_port = NULL;
     l->current.stream_conf_id = 32;
+    l->current.sdp_neg_done = PJ_FALSE;
 
 }
 

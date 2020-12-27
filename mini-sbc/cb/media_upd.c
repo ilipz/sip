@@ -76,7 +76,12 @@ void on_media_update (pjsip_inv_session *inv, pj_status_t status)
     } 
 
     // Start the audio stream 
-    
+    status = pjmedia_stream_start (l->current.stream);
+    if (PJ_SUCCESS != status)
+    {
+            pj_perror (5, FULL_INFO, status, "pjmedia_stream_start()");
+            return;
+    }
 	
     
     
@@ -90,4 +95,6 @@ void on_media_update (pjsip_inv_session *inv, pj_status_t status)
     status = pjmedia_conf_add_port (g.conf, l->current.inv->pool, l->current.stream_port, NULL, &l->current.stream_conf_id); // CATCH
     if (status != PJ_SUCCESS)
         halt ("pjmedia_conf_add_port");
+    
+    l->current.sdp_neg_done = PJ_TRUE;
 }

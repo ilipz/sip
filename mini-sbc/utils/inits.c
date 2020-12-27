@@ -251,6 +251,7 @@ void init_juncs ()
         j->in_leg.type = IN;
         j->in_leg.reverse = &j->out_leg;
         j->in_leg.junction_index = j->index;
+        
         nullize_leg (&j->in_leg);
         
 

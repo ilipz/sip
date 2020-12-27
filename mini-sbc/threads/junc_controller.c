@@ -33,7 +33,7 @@ int junc_controller (void *p)
             emergency_exit (FULL_INFO, &status); 
     }
 
-
+    // 
     if (j->in_leg.current.inv->state == PJSIP_INV_STATE_DISCONNECTED || j->in_leg.current.inv->state == PJSIP_INV_STATE_NULL)
     {
         PJ_LOG (5, (FULL_INFO, "Exit due to IN leg invite state (DISSCONECTED or NULL) before OUT leg confirmed"));
@@ -43,7 +43,7 @@ int junc_controller (void *p)
     {
         PJ_LOG (5, (FULL_INFO, "Exit due to OUT leg invite state (DISSCONECTED or NULL)"));
         pjsip_tx_data *tdata;
-        printf ("\n\n\n\nALLALALALAL\n\n\n\n");
+        //printf ("\n\n\n\nALLALALALAL\n\n\n\n");
         sleep (5);
         status = pjsip_inv_answer(j->in_leg.current.inv,  603, NULL, NULL, &tdata);
         if (status != PJ_SUCCESS)
@@ -65,13 +65,13 @@ int junc_controller (void *p)
         status = pjsip_inv_send_msg(j->in_leg.current.inv, tdata);
         if (status != PJ_SUCCESS)
             emergency_exit (FULL_INFO, &status);
-    }
+    } 
     
     
     
     while (1)
     {
-        if (j->out_leg.current.inv && j->in_leg.current.inv) 
+        if ( (j->out_leg.current.sdp_neg_done == PJ_TRUE) && (j->in_leg.current.sdp_neg_done == PJ_TRUE) ) 
             if (j->out_leg.current.inv->state == PJSIP_INV_STATE_CONFIRMED && j->in_leg.current.inv->state == PJSIP_INV_STATE_CONFIRMED)
             {
                 PJ_LOG (5, (FULL_INFO, "Start connecting legs in conference bridge"));
@@ -84,7 +84,7 @@ int junc_controller (void *p)
                 if (status != PJ_SUCCESS)
                     emergency_exit (FULL_INFO, &status);
 
-                status = pjmedia_stream_start(j->in_leg.current.stream);
+                /*status = pjmedia_stream_start(j->in_leg.current.stream);
                 if (PJ_SUCCESS != status)
                 {
                     pj_perror (5, FULL_INFO, status, "pjmedia_stream_start()");
@@ -96,7 +96,7 @@ int junc_controller (void *p)
                 {
                     pj_perror (5, FULL_INFO, status, "pjmedia_stream_start()");
                     return 0;
-                } 
+                } */
 
                 PJ_LOG (5, (FULL_INFO, "Finish connecting legs in conference bridge. Exit"));
                 
